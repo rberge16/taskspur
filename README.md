@@ -18,3 +18,8 @@ API-Schlüssel liegen verschlüsselt in der DB, der Schlüssel dazu in `secret.k
 ## Grenzen
 Kein FIT/HRV/DFA-Import.
 Windows-Start und echte Browser-Darstellung sind nur im Linux-Test nicht geprüft.
+
+## Diagramme (FIT, HRV, DFA a1)
+- Browser: uPlot (lokal in `web/vendor/uplot`, MIT), Wrapper `web/js/charts.js` → `lineChart(container, {title, x, series})`. Zoom per Ziehen, Doppelklick setzt zurück, passt sich der Breite an.
+- Server: `app/downsample.py` (LTTB) reduziert lange Zeitreihen auf einige hundert Punkte, Lücken bleiben erhalten – der Raspberry Pi rendert nichts, er liefert nur reduzierte Daten.
+- Tests: `tests/frontend/browser.js` (echter Chromium: Layout Handy/PC, CSP, Diagramm), `tests/frontend/smoke.js` (jsdom).

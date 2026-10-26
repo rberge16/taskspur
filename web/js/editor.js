@@ -216,7 +216,7 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
       : h('div', { class: 'row' },
         h('label', { class: 'field' }, h('span', {}, 'Datum'), h('input', { id: 'f-date', type: 'date', value: p.date, disabled: ro, onchange: (e) => { p.date = e.target.value; renderSync(); } })),
         h('label', { class: 'field' }, h('span', {}, 'Startzeit'), h('input', { id: 'f-time', type: 'time', value: p.start_time, disabled: ro, onchange: (e) => { p.start_time = e.target.value; } })));
-    panel.replaceChildren(
+    panel.replaceChildren(...[
       ro ? h('p', { class: 'readonly-note' }, 'Schreibgeschützt: Diese Einheit stammt aus Intervals.icu bzw. ist absolviert und kann nicht bearbeitet werden.') : null,
       h('label', { class: 'field' }, h('span', {}, 'Titel'), h('input', { value: p.title, maxlength: 120, required: true, disabled: ro, placeholder: 'z. B. GA1 Ausdauer', oninput: (e) => { p.title = e.target.value; } })),
       h('div', { class: 'row' },
@@ -227,7 +227,7 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
       dateRow,
       second ? null : planFields(),
       h('label', { class: 'field' }, h('span', {}, 'Beschreibung'), h('textarea', { rows: 3, maxlength: 2000, disabled: ro, placeholder: 'Ziel, Intensität und Inhalt', oninput: (e) => { p.description = e.target.value; } }, p.description)),
-      h('h3', {}, 'Struktur'), steps.element);
+      h('h3', {}, 'Struktur'), steps.element].filter(Boolean));
     schedulePreview(); renderSync();
   }
   function renderTabsLabel() { if (brickMode) tabs.replaceChildren(...parts.map((x, i) => h('button', { type: 'button', role: 'tab', 'aria-selected': i === active, class: i === active ? 'tab active' : 'tab', onclick: () => { active = i; renderPanel(); } }, `Teil ${i + 1}${x.sport ? ` · ${x.sport}` : ''}`))); }

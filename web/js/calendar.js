@@ -111,5 +111,5 @@ export async function renderCalendar(root) {
       days.length ? days.map((k) => h('section', { class: 'list-day' }, h('h3', {}, longDay(k)), byDate.get(k).map(card))) : h('p', { class: 'empty' }, 'In diesem Monat gibt es keine Einheiten.'));
   }
   const undatedBox = undated.length ? h('section', { class: 'undated' }, h('h3', {}, 'Ohne Datum'), undated.map(card)) : null;
-  root.replaceChildren(toolbar, body, undatedBox);
+  root.replaceChildren(...[toolbar, body, undatedBox].filter(Boolean));
 }

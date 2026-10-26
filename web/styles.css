@@ -135,3 +135,13 @@ dialog#editor > form, dialog#editor > div { padding: 1rem; }
   .field { flex-basis: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Diagramme */
+.chart { margin: 0 0 1rem; padding: .75rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.chart figcaption { font-weight: 600; margin-bottom: .4rem; }
+.chart-holder { width: 100%; min-width: 0; overflow: hidden; }
+.chart .u-legend { font-size: .8rem; text-align: left; }
+.chart .u-legend .u-marker { border-radius: 2px; }
+.chart .u-select { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+dialog#editor .panel { border: 0; padding: 0; background: none; margin: 0; }
+@media (max-width: 40rem) { dialog#editor > form, dialog#editor > div { padding: .75rem; } }
