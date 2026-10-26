@@ -54,11 +54,11 @@ def build_fit(seconds=1200, rr_ms=None, sport=1, start_unix=1_790_000_000) -> by
             chunk = [int(round(x)) for x in rr_ms[k:k + 5]]
             chunk += [0xFFFF] * (5 - len(chunk))
             body += _data(2, hrv, [chunk])
-    lap = [(253, "uint32", 1), (7, "uint32", 1), (9, "uint32", 1), (15, "uint8", 1)]
+    lap = [(253, "uint32", 1), (2, "uint32", 1), (7, "uint32", 1), (9, "uint32", 1), (15, "uint8", 1)]
     body += _define(3, 19, lap)
-    half = seconds // 2
-    for n in range(2):
-        body += _data(3, lap, [ts0 + (n + 1) * half, half * 1000, int(dist * 50), 130 + 10 * n])
+    part = seconds // 3
+    for n in range(3):
+        body += _data(3, lap, [ts0 + (n + 1) * part, ts0 + n * part, part * 1000, int(dist / 3 * 100), 130 + 10 * n])
     ses = [(253, "uint32", 1), (5, "enum", 1), (8, "uint32", 1), (9, "uint32", 1), (16, "uint8", 1)]
     body += _define(4, 18, ses) + _data(4, ses, [ts0 + seconds, sport, seconds * 1000, int(dist * 100), 140])
     header = struct.pack("<BBHI4s", 14, 0x20, 2132, len(body), b".FIT")

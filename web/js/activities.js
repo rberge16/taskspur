@@ -115,13 +115,17 @@ async function renderDetail(root, id) {
 
   // Diagramme
   const t = a.t, d = a.data, labels = Object.fromEntries(a.channels.map((c) => [c.key, c]));
-  const chartSection = h('section', { class: 'panel-box act-section' }, h('h3', {}, 'Verlauf'), h('p', { class: 'hint' }, 'Ziehen zum Zoomen (gilt für alle Diagramme), Doppelklick setzt zurück. Die Legende zeigt die Werte unter dem Mauszeiger.'));
+  // Rundengrenzen als Haarlinien (schaltbar, gilt für alle Diagramme); erste Runde beginnt bei 0 und braucht keine Linie
+  const lapStarts = (a.lap_bounds || []).map((l, i) => ({ t: l.from_s, n: i + 1 })).filter((l) => l.t !== null && l.t > 1);
+  const marks = { on: false, times: lapStarts.map((l) => l.t), labels: lapStarts.map((l) => `R${l.n}`) };
+  const lapToggle = lapStarts.length ? h('label', { class: 'check' }, h('input', { type: 'checkbox', id: 'lap-lines', onchange: (e) => { marks.on = e.target.checked; charts.forEach((c) => c.plot.redraw(false)); } }), h('span', {}, `Runden als Linien einblenden (${lapStarts.length + 1} Runden)`)) : null;
+  const chartSection = h('section', { class: 'panel-box act-section' }, h('h3', {}, 'Verlauf'), h('p', { class: 'hint' }, 'Ziehen zum Zoomen (gilt für alle Diagramme), Doppelklick setzt zurück. Die Legende zeigt die Werte unter dem Mauszeiger.'), lapToggle);
   out.push(chartSection);
   const used = new Set();
   const make = (title, defs, extra = {}) => {
     const series = defs.filter(([k]) => d[k]).map(([k, scale, over]) => { used.add(k); return { label: labels[k].label, unit: labels[k].unit, values: d[k], scale, ...(over || {}) }; });
     if (!series.length) return;
-    charts.push(lineChart(chartSection, { title, x: t, series, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, ...extra }));
+    charts.push(lineChart(chartSection, { title, x: t, series, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, marks, ...extra }));
   };
   const res = a.resolution_s || 1, win = Math.max(1, Math.round(10 / res));
   const smooth = (arr) => arr.map((_, i) => { let sum = 0, n = 0; for (let j = Math.max(0, i - win + 1); j <= i; j++) if (arr[j] !== null) { sum += arr[j]; n++; } return n ? sum / n : null; });
@@ -129,10 +133,10 @@ async function renderDetail(root, id) {
     used.add('speed');
     if (isRun) {
       const sp = smooth(d.speed);
-      charts.push(lineChart(chartSection, { title: 'Pace (Ø 10 s, langsamer als 12 min/km nicht dargestellt)', x: t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, yReverse: true,
+      charts.push(lineChart(chartSection, { title: 'Pace (Ø 10 s, langsamer als 12 min/km nicht dargestellt)', x: t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, marks, yReverse: true,
         series: [{ label: 'Pace', unit: 'min/km', format: (v) => pace(v), tickFormat: (v) => pace(v), values: sp.map((v) => (v && 1000 / v <= 720 ? 1000 / v : null)) }] }));
     } else {
-      charts.push(lineChart(chartSection, { title: 'Geschwindigkeit', x: t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, series: [{ label: 'Geschwindigkeit', unit: 'km/h', values: d.speed.map((v) => (v === null ? null : v * 3.6)) }] }));
+      charts.push(lineChart(chartSection, { title: 'Geschwindigkeit', x: t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, marks, series: [{ label: 'Geschwindigkeit', unit: 'km/h', values: d.speed.map((v) => (v === null ? null : v * 3.6)) }] }));
     }
   }
   make('Herzfrequenz und Leistung', [['heart_rate', 'y'], ['power', 'y2']]);
@@ -147,7 +151,7 @@ async function renderDetail(root, id) {
   out.push(hrvSection(hrv, isRun));
 
   // Runden
-  if (a.laps.length) out.push(lapsSection(a.laps, isRun));
+  if (a.laps.length) out.push(lapsSection(a.laps, isRun, hrv));
 
   // Werte pro Zeitabschnitt
   out.push(tableSection(id));
@@ -155,7 +159,7 @@ async function renderDetail(root, id) {
   render(root, ...out.map((x) => x));
   // Diagramme brauchen ihren Container im DOM → erst jetzt einhängen
   charts.forEach((c) => c.plot.setSize({ width: Math.max(240, c.plot.root.parentElement.clientWidth), height: 240 }));
-  void renderHrvCharts(root, hrv);
+  void renderHrvCharts(root, hrv, marks);
 }
 
 // ---------- HRV ----------
@@ -187,11 +191,11 @@ function hrvSection(hrv) {
       h('p', {}, 'Orientierung aus Stufentests gesunder, trainierter Erwachsener (u. a. Gronwald et al.; Rogers et al. 2021): a1 ≈ 0,75 entspricht etwa der ersten Schwelle (aerob), a1 ≈ 0,5 etwa der zweiten (anaerob). Das sind Mittelwerte mit deutlicher individueller Streuung, keine medizinische Aussage. Werte sinken mit Ermüdung und Hitze und hängen von der RR-Qualität ab. Die Zeitachse der RR-Daten beginnt mit der ersten HRV-Nachricht und kann um Sekunden gegen die Aufzeichnung verschoben sein.'))));
 }
 
-async function renderHrvCharts(root, hrv) {
+async function renderHrvCharts(root, hrv, marks) {
   const host = root.querySelector(`#${HRV_ID}`);
   if (!host || !hrv.available) return;
   const al = hrv.alpha1, ref = (v) => al.t.map(() => v);
-  charts.push(lineChart(host, { title: 'DFA a1 (gleitendes 120-s-Fenster)', x: al.t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, height: 260,
+  charts.push(lineChart(host, { title: 'DFA a1 (gleitendes 120-s-Fenster)', x: al.t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, marks, height: 260,
     series: [{ label: 'DFA a1', values: al.value, color: '#0f766e', format: (v) => num(v, 2) },
       { label: 'Orientierung HRVT1 (0,75)', values: ref(0.75), dash: [6, 4], color: '#b45309', format: (v) => num(v, 2) },
       { label: 'Orientierung HRVT2 (0,5)', values: ref(0.5), dash: [2, 4], color: '#b42318', format: (v) => num(v, 2) },
@@ -199,7 +203,7 @@ async function renderHrvCharts(root, hrv) {
     note: 'Leere Stellen: zu viele Artefakte im Fenster oder zu wenige Schläge.' }));
   const normal = hrv.rr.ms.filter((_, i) => !hrv.rr.artifact[i]).sort((x, y) => x - y);
   const top = normal.length ? normal[Math.floor(normal.length * 0.995)] : 1500;
-  charts.push(lineChart(host, { title: 'RR-Intervalle (Tachogramm) mit erkannten Artefakten', x: hrv.rr.t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC,
+  charts.push(lineChart(host, { title: 'RR-Intervalle (Tachogramm) mit erkannten Artefakten', x: hrv.rr.t, xFormat: duration, xLabel: 'Zeit', syncKey: SYNC, marks,
     yRange: [Math.max(0, Math.round(normal[0] * 0.5 / 50) * 50), Math.ceil((top * 1.3) / 100) * 100],
     note: 'Die Achse zeigt den Normalbereich; einzelne extreme Artefakte (> 2 s oder sehr kurz) liegen außerhalb und sind in den Kennzahlen mitgezählt.',
     series: [{ label: 'RR-Intervall', unit: 'ms', values: hrv.rr.ms, color: '#2563eb', format: (v) => num(v, 0) },
@@ -207,16 +211,19 @@ async function renderHrvCharts(root, hrv) {
 }
 
 // ---------- Runden ----------
-function lapsSection(laps, isRun) {
+function lapsSection(laps, isRun, hrv) {
+  const lapA1 = hrv && hrv.available && hrv.laps ? hrv.laps : null;
   const first = laps[0].start_time ? new Date(laps[0].start_time).getTime() : null;
   const speed = (l) => l.enhanced_avg_speed ?? l.avg_speed;
   const cols = [['#', (l, i) => String(i + 1)], ['Start', (l) => (first && l.start_time ? duration((new Date(l.start_time).getTime() - first) / 1000) : '–')],
     ['Dauer', (l) => duration(l.total_timer_time ?? l.total_elapsed_time)], ['Distanz (km)', (l) => km(l.total_distance)],
     [isRun ? 'Pace (min/km)' : 'Tempo (km/h)', (l) => (isRun ? paceFromSpeed(speed(l)) : kmh(speed(l)))],
     ['Ø HF', (l) => num(l.avg_heart_rate, 0)], ['Max HF', (l) => num(l.max_heart_rate, 0)], ['Ø Leistung (W)', (l) => num(l.avg_power, 0)], ['Norm. Leistung (W)', (l) => num(l.normalized_power, 0)],
-    ['Schritte/min', (l) => num(l.avg_running_cadence ? l.avg_running_cadence * 2 : l.avg_cadence ? l.avg_cadence * (isRun ? 2 : 1) : null, 0)], ['Anstieg (m)', (l) => num(l.total_ascent, 0)], ['Intensität', (l) => INTENSITY[l.intensity] || l.intensity || '–']];
+    ['Schritte/min', (l) => num(l.avg_running_cadence ? l.avg_running_cadence * 2 : l.avg_cadence ? l.avg_cadence * (isRun ? 2 : 1) : null, 0)], ['Anstieg (m)', (l) => num(l.total_ascent, 0)], ['Intensität', (l) => INTENSITY[l.intensity] || l.intensity || '–'],
+    ...(lapA1 ? [['DFA a1 Ø', (l, i) => (lapA1[i] && lapA1[i].alpha1_mean !== null ? num(lapA1[i].alpha1_mean, 2) : '–')]] : [])];
   const keys = [...new Set(laps.flatMap((l) => Object.keys(l)))].filter((k) => !SKIP_DUP.has(k) || !laps.some((l) => `enhanced_${k}` in l));
   return section('Runden',
+    lapA1 ? h('p', { class: 'hint' }, 'DFA a1 je Runde: Mittel der gültigen 120-s-Fenster, deren Mitte in der Runde liegt. Runden unter ca. 2 Minuten oder mit zu vielen Artefakten haben keinen Wert (–).') : null,
     wrapTable(h('thead', {}, tr(cols.map((c) => c[0]), true)), h('tbody', {}, laps.map((l, i) => tr(cols.map((c) => c[1](l, i)))))),
     h('details', {}, h('summary', {}, 'Alle Rundenwerte aus der Datei'),
       wrapTable(h('thead', {}, tr(['#', ...keys.map((k) => fieldRow(k, 0)[0])], true)), h('tbody', {}, laps.map((l, i) => tr([String(i + 1), ...keys.map((k) => (l[k] === undefined ? '–' : fieldRow(k, l[k])[1]))]))))));

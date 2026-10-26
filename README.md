@@ -18,6 +18,9 @@ Nur in Taktspur geplante Workouts gehen an Intervals.icu: beim Speichern gesende
 ## Aktivitäten von Intervals.icu
 Unter Einstellungen › „Aktivitäten von Intervals.icu“ legst du fest, für wie viele zurückliegende Tage (1–730, Standard 30) absolvierte Aktivitäten geholt werden. Taktspur lädt – nur lesend – die FIT-Datei (mit Messdaten, RR-Intervallen, DFA a1) oder, wenn keine Datei verfügbar ist, die Kennzahlen. Das passiert beim Start automatisch (abschaltbar) und per Knopf „Jetzt abgleichen“. Vorhandene Aktivitäten werden nicht doppelt angelegt, in Taktspur gelöschte nicht erneut geholt. Die Aktivitäten erscheinen im Kalender (grünes Häkchen) und unter Aktivitäten. Es wird nichts an Intervals.icu gesendet.
 
+## Runden
+In der Aktivitätsansicht zeigt die Rundentabelle zusätzlich DFA a1 je Runde (Mittel der gültigen 120-s-Fenster, deren Mitte in der Runde liegt; sehr kurze Runden bleiben leer). „Runden als Linien einblenden“ legt senkrechte Haarlinien (R2, R3 …) über alle Diagramme.
+
 ## Tests
 `pip install -r requirements-dev.txt && pytest` – Intervals.icu wird nur simuliert.
 

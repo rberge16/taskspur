@@ -33,10 +33,12 @@ def test_import_with_hrv_end_to_end(client):
     assert {"heart_rate", "power", "speed", "altitude", "distance", "cadence"} <= keys
     assert len(d["t"]) == 1200 and all(len(v) == 1200 for v in d["data"].values())      # volle Auflösung
     assert d["data"]["cadence"][0] == 156                                                # Doppelschritte → Schritte/min
-    assert len(d["laps"]) == 2
+    assert len(d["laps"]) == 3
+    assert [b["from_s"] for b in d["lap_bounds"]] == [0.0, 400.0, 800.0]   # gleiche Zeitachse wie die Diagramme
     # keine Profil-/GPS-Daten gespeichert
     assert "position_lat" not in json.dumps(d) and "friendly_name" not in json.dumps(d)
     h = client.get(f"/api/activities/{a['id']}/hrv").json()
+    assert [lap["index"] for lap in h["laps"]] == [0, 1, 2] and all("alpha1_mean" in lap for lap in h["laps"])
     assert h["available"] and h["stats"]["artifacts"] >= 8 and 0.2 < h["stats"]["alpha1_mean"] < 0.9
     assert h["method"]["lambda"] == 500 and h["reference"] == {"HRVT1": 0.75, "HRVT2": 0.5}
     assert h["thresholds"]["reliable"] is False and h["thresholds"]["reason"]          # kein Stufentest → ausdrücklich nicht belastbar
@@ -131,3 +133,25 @@ def test_migration_v1_to_v2_keeps_data_and_makes_backup(tmp_path):
     assert conn.execute("SELECT name FROM plans WHERE id='p1'").fetchone()["name"] == "Alt"
     assert conn.execute("SELECT count(*) c FROM activities").fetchone()["c"] == 0
     assert list(tmp_path.glob("**/*.sqlite3")) and len(list(tmp_path.rglob("*"))) >= 3        # Backup neben der DB angelegt
+
+
+def test_lap_alpha1_assigns_windows_by_midpoint_and_leaves_short_laps_empty():
+    import json
+
+    from app import activities, hrv
+
+    laps = [
+        {"start_time": "2026-01-01T10:00:00", "total_elapsed_time": 300},
+        {"start_time": "2026-01-01T10:05:00", "total_elapsed_time": 60},   # kürzer als ein Fenster, keine Fenstermitte darin
+        {"start_time": "2026-01-01T10:06:00+00:00", "total_elapsed_time": 300},
+        {"start_time": None, "total_elapsed_time": 10},
+    ]
+    row = {"start_time": "2026-01-01T10:00:00", "laps_json": json.dumps(laps)}
+    half = hrv.WINDOW_S / 2
+    # Fenster-Enden so, dass die Mitten bei 100 s, 200 s (Runde 1) und 400 s (Runde 3) liegen; None = ungültiges Fenster
+    alpha1 = {"t": [100 + half, 200 + half, 250 + half, 400 + half], "value": [1.0, 0.8, None, 0.4]}
+    result = activities.lap_alpha1(row, alpha1)
+    assert result[0]["alpha1_mean"] == 0.9 and result[0]["windows"] == 2
+    assert result[1]["alpha1_mean"] is None and result[1]["windows"] == 0
+    assert result[2]["alpha1_mean"] == 0.4 and result[2]["from_s"] == 360.0
+    assert result[3]["from_s"] is None and result[3]["alpha1_mean"] is None

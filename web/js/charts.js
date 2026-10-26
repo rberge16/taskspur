@@ -19,11 +19,12 @@ const FALLBACK = ['#2563eb', '#c2410c', '#7c3aed', '#0f766e', '#be185d', '#4d7c0
  *  - Serien mit scale 'y2' bekommen eine eigene Achse rechts (z. B. Herzfrequenz + Leistung).
  *  - points: true zeichnet nur Punkte (z. B. erkannte Artefakte), dash zeichnet Referenzlinien.
  *  - yRange: [min, max] fixiert die y-Achse (Ausreißer außerhalb werden abgeschnitten; Zoom bleibt möglich).
+ *  - marks: gemeinsames Objekt { on: boolean, times: [Sekunden], labels?: [Text] } – senkrechte Haarlinien (z. B. Rundengrenzen), schaltbar ohne Neuaufbau (plot.redraw()).
  *  - syncKey: Diagramme mit gleichem Schlüssel teilen Cursor und Zoom (Zeitachse).
  * Rückgabe: { plot, update, destroy }. Passt sich per ResizeObserver der Breite an (Handy → PC).
  * Farben sind nie das einzige Unterscheidungsmerkmal (Legende mit Namen und Werten unter dem Cursor).
  */
-export function lineChart(container, { title, x, series, xLabel = '', xFormat = (v) => String(v), height = 240, syncKey = null, yReverse = false, yRange = null, note = '' }) {
+export function lineChart(container, { title, x, series, xLabel = '', xFormat = (v) => String(v), height = 240, syncKey = null, yReverse = false, yRange = null, note = '', marks = null }) {
   ensureCss();
   const muted = cssVar('--muted', '#5b6784'), grid = cssVar('--line', '#d9dfeb');
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
@@ -40,8 +41,28 @@ export function lineChart(container, { title, x, series, xLabel = '', xFormat = 
 
   const first = series.find((s) => (s.scale || 'y') === 'y');
   const unitOf = (scale) => [...new Set(series.filter((s) => (s.scale || 'y') === scale && s.unit).map((s) => s.unit))].join(' / ');
+  const markPlugin = () => ({
+    hooks: {
+      draw: (u) => {
+        if (!marks || !marks.on) return;
+        const { left, top, width: w, height: ht } = u.bbox, ctx = u.ctx, dpr = devicePixelRatio || 1;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(left, top, w, ht); ctx.clip();
+        ctx.strokeStyle = muted; ctx.fillStyle = muted; ctx.lineWidth = 1 * dpr; ctx.setLineDash([3 * dpr, 3 * dpr]);
+        ctx.font = `${0.7 * rem * dpr}px system-ui, sans-serif`; ctx.textBaseline = 'top';
+        marks.times.forEach((t, i) => {
+          const x = u.valToPos(t, 'x', true);
+          if (x < left || x > left + w) return;
+          ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + ht); ctx.stroke();
+          if (marks.labels && marks.labels[i]) ctx.fillText(marks.labels[i], x + 3 * dpr, top + 2 * dpr);
+        });
+        ctx.restore();
+      },
+    },
+  });
   const opts = (width) => ({
     width, height,
+    plugins: marks ? [markPlugin()] : [],
     legend: { show: true, live: true },
     cursor: { drag: { x: true, y: false }, ...(syncKey ? { sync: { key: syncKey } } : {}) },
     scales: { x: { time: false }, y: { ...(yReverse ? { dir: -1, ori: 1 } : {}), ...(yRange ? { range: () => yRange } : {}) }, ...(hasY2 ? { y2: {} } : {}) },

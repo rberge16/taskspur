@@ -151,7 +151,7 @@ def detail(conn: sqlite3.Connection, activity_id: str, max_points: int = 6000) -
     if not data["t"]:
         return {**_summary(row), "session": json.loads(row["session_json"]), "laps": json.loads(row["laps_json"]), "channels": [], "t": [], "data": {}, "resolution_s": 0}
     t, cols = bucket_mean(data["t"], data["channels"], max_points)
-    return {**_summary(row), "session": json.loads(row["session_json"]), "laps": json.loads(row["laps_json"]),
+    return {**_summary(row), "session": json.loads(row["session_json"]), "laps": json.loads(row["laps_json"]), "lap_bounds": _bounds_json(row),
             "channels": json.loads(row["channels_json"]), "t": t, "data": cols, "resolution_s": round((data["t"][-1] - data["t"][0]) / max(1, len(t) - 1), 2) if len(t) > 1 else 0}
 
 
@@ -176,7 +176,48 @@ def hrv_detail(conn: sqlite3.Connection, activity_id: str) -> dict[str, Any]:
     analysis["reference"] = {"HRVT1": hrv.THRESHOLDS["HRVT1"], "HRVT2": hrv.THRESHOLDS["HRVT2"]}
     # α1 und Herzfrequenz je Fenster (für die Streudiagramm-/Tabellenansicht)
     analysis["alpha1"]["hr"] = [None if (h := hr_window(x)) is None else round(h, 1) for x in analysis["alpha1"]["t"]]
+    analysis["laps"] = lap_alpha1(row, analysis["alpha1"])
     return analysis
+
+
+def _lap_bounds(row: sqlite3.Row) -> list[tuple[float, float]]:
+    """Runden als (Start, Ende) in Sekunden ab Aufzeichnungsbeginn (gleiche Achse wie die Diagramme)."""
+    from datetime import datetime
+
+    def parse(value: Any) -> datetime | None:
+        try:
+            dt = datetime.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            return None
+        return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+    t0 = parse(row["start_time"])
+    bounds: list[tuple[float, float]] = []
+    for lap in json.loads(row["laps_json"]):
+        start = parse(lap.get("start_time"))
+        length = lap.get("total_elapsed_time") or lap.get("total_timer_time")
+        if t0 is None or start is None or not length:
+            bounds.append((float("nan"), float("nan")))
+            continue
+        offset = (start - t0).total_seconds()
+        bounds.append((offset, offset + float(length)))
+    return bounds
+
+
+def _bounds_json(row: sqlite3.Row) -> list[dict[str, Any]]:
+    return [{"from_s": None if a != a else round(a, 1), "to_s": None if b != b else round(b, 1)} for a, b in _lap_bounds(row)]
+
+
+def lap_alpha1(row: sqlite3.Row, alpha1: dict[str, Any]) -> list[dict[str, Any]]:
+    """DFA a1 je Runde: Mittel der gültigen 120-s-Fenster, deren Mitte in der Runde liegt.
+    Runden kürzer als ein Fenster können leer bleiben – dann steht dort ‚–‘ statt eines erfundenen Werts."""
+    centers = [t - hrv.WINDOW_S / 2 for t in alpha1["t"]]
+    out = []
+    for index, (start, end) in enumerate(_lap_bounds(row)):
+        values = [v for c, v in zip(centers, alpha1["value"]) if v is not None and start <= c < end] if start == start else []
+        out.append({"index": index, "from_s": None if start != start else round(start, 1), "to_s": None if end != end else round(end, 1),
+                    "alpha1_mean": round(float(np.mean(values)), 2) if values else None, "windows": len(values)})
+    return out
 
 
 def table(conn: sqlite3.Connection, activity_id: str, bucket_s: int = 60) -> dict[str, Any]:
