@@ -1,0 +1,13 @@
+[Unit]
+Description=Taktspur Trainingsplanung
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/taktspur-neu
+Environment=TAKTSPUR_DATA_DIR=/home/pi/taktspur-daten
+ExecStart=/home/pi/taktspur-neu/.venv/bin/python scripts/run_local.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
