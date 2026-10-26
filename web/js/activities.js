@@ -153,7 +153,7 @@ async function renderDetail(root, id) {
   out.push(hrvSection(hrv, isRun));
 
   // Runden
-  if (a.laps.length) out.push(lapsSection(a.laps, isRun, hrv));
+  if (a.laps.length) out.push(lapsSection(a.laps, isRun, hrv, lapBounds(a)));
 
   // Werte pro Zeitabschnitt
   out.push(tableSection(id));
@@ -229,16 +229,26 @@ function lapBounds(a) {
 }
 
 // ---------- Runden ----------
-function lapsSection(laps, isRun, hrv) {
-  const lapA1 = hrv && hrv.available && hrv.laps ? hrv.laps : null;
+// DFA a1 je Runde: vom Server, sonst (älterer Server) aus den a1-Fenstern und den Rundengrenzen berechnet.
+function lapAlpha1(laps, hrv, bounds) {
+  if (!hrv || !hrv.available) return null;
+  if (hrv.laps) return hrv.laps;
+  const half = hrv.method ? hrv.method.window_s / 2 : 60, al = hrv.alpha1;
+  return bounds.map((b) => {
+    const vals = b.from_s === null ? [] : al.t.map((t, i) => [t - half, al.value[i]]).filter(([c, v]) => v !== null && c >= b.from_s && c < b.to_s).map(([, v]) => v);
+    return { alpha1_mean: vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null };
+  });
+}
+
+function lapsSection(laps, isRun, hrv, bounds) {
+  const lapA1 = lapAlpha1(laps, hrv, bounds);
   const first = laps[0].start_time ? new Date(laps[0].start_time).getTime() : null;
   const speed = (l) => l.enhanced_avg_speed ?? l.avg_speed;
   const cols = [['#', (l, i) => String(i + 1)], ['Start', (l) => (first && l.start_time ? duration((new Date(l.start_time).getTime() - first) / 1000) : '–')],
     ['Dauer', (l) => duration(l.total_timer_time ?? l.total_elapsed_time)], ['Distanz (km)', (l) => km(l.total_distance)],
     [isRun ? 'Pace (min/km)' : 'Tempo (km/h)', (l) => (isRun ? paceFromSpeed(speed(l)) : kmh(speed(l)))],
-    ['Ø HF', (l) => num(l.avg_heart_rate, 0)], ['Max HF', (l) => num(l.max_heart_rate, 0)], ['Ø Leistung (W)', (l) => num(l.avg_power, 0)], ['Norm. Leistung (W)', (l) => num(l.normalized_power, 0)],
-    ['Schritte/min', (l) => num(l.avg_running_cadence ? l.avg_running_cadence * 2 : l.avg_cadence ? l.avg_cadence * (isRun ? 2 : 1) : null, 0)], ['Anstieg (m)', (l) => num(l.total_ascent, 0)], ['Intensität', (l) => INTENSITY[l.intensity] || l.intensity || '–'],
-    ...(lapA1 ? [['DFA a1 Ø', (l, i) => (lapA1[i] && lapA1[i].alpha1_mean !== null ? num(lapA1[i].alpha1_mean, 2) : '–')]] : [])];
+    ['Ø HF', (l) => num(l.avg_heart_rate, 0)], ...(lapA1 ? [['DFA a1 Ø', (l, i) => (lapA1[i] && lapA1[i].alpha1_mean !== null ? num(lapA1[i].alpha1_mean, 2) : '–')]] : []), ['Max HF', (l) => num(l.max_heart_rate, 0)], ['Ø Leistung (W)', (l) => num(l.avg_power, 0)], ['Norm. Leistung (W)', (l) => num(l.normalized_power, 0)],
+    ['Schritte/min', (l) => num(l.avg_running_cadence ? l.avg_running_cadence * 2 : l.avg_cadence ? l.avg_cadence * (isRun ? 2 : 1) : null, 0)], ['Anstieg (m)', (l) => num(l.total_ascent, 0)], ['Intensität', (l) => INTENSITY[l.intensity] || l.intensity || '–']];
   const keys = [...new Set(laps.flatMap((l) => Object.keys(l)))].filter((k) => !SKIP_DUP.has(k) || !laps.some((l) => `enhanced_${k}` in l));
   return section('Runden',
     lapA1 ? h('p', { class: 'hint' }, 'DFA a1 je Runde: Mittel der gültigen 120-s-Fenster, deren Mitte in der Runde liegt. Runden unter ca. 2 Minuten oder mit zu vielen Artefakten haben keinen Wert (–).') : null,
@@ -257,7 +267,7 @@ function tableSection(id) {
       const t = await get(`/api/activities/${id}/table?bucket=${bucket}`);
       const fmt = (c, v) => (v === null || v === undefined ? '–' : c.key === 'pace_s_per_km' ? pace(v) : c.key === 'speed' ? `${kmh(v)}` : c.key === 'distance' ? km(v) : c.key === 'alpha1' ? num(v, 2) : num(v, Math.abs(v) >= 100 ? 0 : 1));
       holder.replaceChildren(wrapTable(
-        h('thead', {}, tr(['Zeit', ...t.columns.map((c) => (c.key === 'speed' ? 'Geschwindigkeit (km/h)' : c.key === 'distance' ? 'Distanz (km)' : c.unit ? `${c.label} (${c.unit})` : c.label))], true)),
+        h('thead', {}, tr(['Zeit', ...t.columns.map((c) => (c.key === 'speed' ? 'Geschwindigkeit (km/h)' : c.key === 'distance' ? 'Distanz (km)' : c.key === 'heart_rate' ? 'Ø Herzfrequenz (bpm)' : c.unit ? `${c.label} (${c.unit})` : c.label))], true)),
         h('tbody', {}, t.rows.map((r) => tr([`${duration(r.from_s)}–${duration(r.to_s)}`, ...t.columns.map((c) => fmt(c, r[c.key]))])))));
     } catch (e) { holder.replaceChildren(h('p', { class: 'form-message error', role: 'alert' }, e.message)); }
   }

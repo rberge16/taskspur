@@ -256,9 +256,12 @@ def table(conn: sqlite3.Connection, activity_id: str, bucket_s: int = 60) -> dic
     if alpha:
         at, av = np.asarray(alpha["t"], dtype=float), alpha["value"]
         for r in rows:
-            vals = [a for x, a in zip(at, av) if a is not None and r["from_s"] < x <= r["to_s"] + 1e-6]
+            # gleiche Zuordnung wie bei den Runden: Fenster, deren Mitte im Abschnitt liegt
+            vals = [a for x, a in zip(at, av) if a is not None and r["from_s"] <= x - hrv.WINDOW_S / 2 < r["to_s"]]
             r["alpha1"] = round(float(np.mean(vals)), 2) if vals else None
-        cols.append({"key": "alpha1", "label": "DFA a1", "unit": ""})
+        entry_col = {"key": "alpha1", "label": "DFA a1 Ø", "unit": ""}
+        at_hr = next((i for i, c in enumerate(cols) if c["key"] == "heart_rate"), None)
+        cols.insert(at_hr + 1 if at_hr is not None else len(cols), entry_col)   # direkt neben die Herzfrequenz
     return {"bucket_s": bucket_s, "columns": cols, "rows": rows}
 
 

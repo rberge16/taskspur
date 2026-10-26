@@ -38,7 +38,10 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); 
     ok(!/\bnull\b|undefined|NaN/.test(info.text), `${name}: kein „null“/„undefined“/„NaN“ im Text`);
     ok(/DFA a1/.test(info.text) && /RMSSD/.test(info.text), `${name}: HRV-Auswertung sichtbar`);
     // Runden: a1-Spalte in der Rundentabelle, Haarlinien in den Diagrammen schaltbar
-    ok(await page.locator('th', { hasText: 'DFA a1 Ø' }).count() === 1, `${name}: Rundentabelle enthält DFA a1 je Runde`);
+    const heads = (title) => page.locator(`section:has(h3:text-is("${title}")) th`).allInnerTexts();
+    const lapHeads = await heads('Runden'), timeHeads = await heads('Werte pro Zeitabschnitt');
+    ok(lapHeads.indexOf('DFA a1 Ø') === lapHeads.indexOf('Ø HF') + 1, `${name}: Rundentabelle: DFA a1 steht direkt neben Ø HF`);
+    ok(timeHeads.indexOf('DFA a1 Ø') === timeHeads.indexOf('Ø Herzfrequenz (bpm)') + 1 && timeHeads.indexOf('Ø Herzfrequenz (bpm)') > 0, `${name}: Zeitabschnitt-Tabelle: DFA a1 steht direkt neben der Herzfrequenz`);
     const box = page.locator('#lap-lines');
     ok(await box.count() === 1, `${name}: Schalter für Rundenlinien vorhanden`);
     const canvas = page.locator('canvas').first(); await canvas.scrollIntoViewIfNeeded();
