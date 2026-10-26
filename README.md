@@ -12,6 +12,9 @@ Eigene Datenbank `taktspur2.sqlite3` im Datenordner (`TAKTSPUR_DATA_DIR`, sonst 
 Die alte `taktspur.sqlite3` wird nie angefasst. Vor jeder Migration wird ein Backup angelegt (14 aufbewahrt).
 API-Schlüssel liegen verschlüsselt in der DB, der Schlüssel dazu in `secret.key` – beides nicht in Git/ZIP.
 
+## Aktivitäten von Intervals.icu
+Unter Einstellungen › „Aktivitäten von Intervals.icu“ legst du fest, für wie viele zurückliegende Tage (1–730, Standard 30) absolvierte Aktivitäten geholt werden. Taktspur lädt – nur lesend – die FIT-Datei (mit Messdaten, RR-Intervallen, DFA a1) oder, wenn keine Datei verfügbar ist, die Kennzahlen. Das passiert beim Start automatisch (abschaltbar) und per Knopf „Jetzt abgleichen“. Vorhandene Aktivitäten werden nicht doppelt angelegt, in Taktspur gelöschte nicht erneut geholt. Die Aktivitäten erscheinen im Kalender (grünes Häkchen) und unter Aktivitäten. Es wird nichts an Intervals.icu gesendet.
+
 ## Tests
 `pip install -r requirements-dev.txt && pytest` – Intervals.icu wird nur simuliert.
 
@@ -22,7 +25,7 @@ Windows-Start und echte Browser-Darstellung sind nur im Linux-Test nicht geprüf
 ## Diagramme (FIT, HRV, DFA a1)
 - Browser: uPlot (lokal in `web/vendor/uplot`, MIT), Wrapper `web/js/charts.js` → `lineChart(container, {title, x, series})`. Zoom per Ziehen, Doppelklick setzt zurück, passt sich der Breite an.
 - Server: `app/downsample.py` (LTTB) reduziert lange Zeitreihen auf einige hundert Punkte, Lücken bleiben erhalten – der Raspberry Pi rendert nichts, er liefert nur reduzierte Daten.
-- Tests: `tests/frontend/browser.js` (echter Chromium: Layout Handy/PC, CSP, Diagramm), `tests/frontend/smoke.js` (jsdom).
+- Tests: `tests/frontend/browser.js` (echter Chromium: Layout Handy/PC, CSP, Diagramm), `tests/frontend/smoke.js` (jsdom), `tests/frontend/calendar_browser.js` (Kalender mit Aktivität, Schlüsselfeld, Abgleich-Einstellungen).
 
 ## Aktivitäten, FIT-Import und HRV (DFA a1)
 - Aktivitäten → „FIT-Dateien importieren“ (mehrere Dateien möglich, Dubletten werden erkannt). GPS-Koordinaten und Profildaten aus der Datei werden **nicht** gespeichert.

@@ -102,6 +102,13 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX idx_activities_start ON activities(start_time);
     """,
+    # 3: Herkunft der Aktivitäten (Intervals.icu-Sync) und lokal gelöschte, nicht erneut zu holende Aktivitäten
+    """
+    ALTER TABLE activities ADD COLUMN source TEXT NOT NULL DEFAULT 'import';
+    ALTER TABLE activities ADD COLUMN external_id TEXT;
+    CREATE UNIQUE INDEX idx_activities_external ON activities(external_id) WHERE external_id IS NOT NULL;
+    CREATE TABLE activity_ignored (external_id TEXT PRIMARY KEY, ignored_at TEXT NOT NULL);
+    """,
 ]
 
 

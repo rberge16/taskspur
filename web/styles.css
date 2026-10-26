@@ -130,6 +130,7 @@ dialog#editor > form, dialog#editor > div { padding: 1rem; }
   .day { min-height: 3.2rem; }
   .day .chip, .day .phase, .day .more { display: none; }
   .day:has(.chip) .day-num { box-shadow: inset 0 -3px 0 var(--accent); }
+  .day:has(.chip.activity) .day-num { box-shadow: inset 0 -3px 0 var(--ok); }
   .week { grid-template-columns: 1fr; }
   .toolbar .range-label { order: -1; flex-basis: 100%; }
   .field { flex-basis: 100%; }
@@ -171,3 +172,8 @@ a.button-link:hover { border-color: var(--accent); }
 th:first-child, td:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; }
 tbody tr:nth-child(even) td:first-child { background: color-mix(in srgb, var(--line) 25%, var(--surface)); }
 @media (max-width: 40rem) { #nav { gap: 0; } #nav button { padding: 0 .55rem; font-size: .9rem; } }
+
+/* Kalender: absolvierte Aktivitäten */
+.chip.activity { text-decoration: none; color: inherit; border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, var(--surface)); }
+.done-mark { font-size: .7rem; background: var(--ok); color: #fff; padding: 0 .25rem; border-radius: .25rem; }
+.card.done { border-left-color: var(--ok); }

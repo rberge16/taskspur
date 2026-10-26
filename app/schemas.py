@@ -104,6 +104,11 @@ class LinkIn(BaseModel):
     second_id: str = Field(min_length=1, max_length=64)
 
 
+class SyncIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    days: Optional[int] = Field(default=None, ge=1, le=730)
+
+
 class PlanIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=120)
@@ -163,3 +168,5 @@ class SettingsIn(BaseModel):
     intervals_auto_send: Optional[bool] = None
     ftp: Optional[int] = Field(default=None, ge=50, le=600)
     lthr: Optional[int] = Field(default=None, ge=80, le=230)
+    intervals_history_days: Optional[int] = Field(default=None, ge=1, le=730)
+    intervals_sync_on_start: Optional[bool] = None

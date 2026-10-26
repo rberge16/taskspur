@@ -5,6 +5,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 import sqlite3
 import uuid
 import zlib
@@ -38,13 +39,23 @@ def _row(conn: sqlite3.Connection, activity_id: str) -> sqlite3.Row:
 def _summary(row: sqlite3.Row) -> dict[str, Any]:
     return {"id": row["id"], "name": row["name"], "sport": row["sport"], "sub_sport": row["sub_sport"], "start_time": row["start_time"],
             "duration_s": row["duration_s"], "distance_m": row["distance_m"], "avg_hr": row["avg_hr"], "avg_power": row["avg_power"],
-            "has_rr": bool(row["has_rr"])}
+            "has_rr": bool(row["has_rr"]), "source": row["source"], "external_id": row["external_id"], "has_data": row["channels_json"] != "[]"}
 
 
-def import_fit(conn: sqlite3.Connection, data: bytes, filename: str) -> dict[str, Any]:
+EXTERNAL_FROM_NAME = re.compile(r"^(i\d{3,})(?:[_\-. ]|$)")      # Intervals.icu-Export: „i201565978_Dresden_Laufen.fit“
+
+
+def import_fit(conn: sqlite3.Connection, data: bytes, filename: str, *, source: str = "import", external_id: str | None = None) -> dict[str, Any]:
     digest = hashlib.sha256(data).hexdigest()
-    existing = conn.execute("SELECT id FROM activities WHERE sha256=?", (digest,)).fetchone()
+    base = (filename or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    if external_id is None and (m := EXTERNAL_FROM_NAME.match(base)):
+        external_id = m.group(1)          # Dateiname verrät die Intervals.icu-ID → späterer Sync legt keine Dublette an
+    existing = conn.execute("SELECT id, external_id FROM activities WHERE sha256=?", (digest,)).fetchone()
     if existing:
+        if external_id and not existing["external_id"] and not conn.execute("SELECT 1 FROM activities WHERE external_id=?", (external_id,)).fetchone():
+            conn.execute("UPDATE activities SET external_id=? WHERE id=?", (external_id, existing["id"]))
+        raise Rejected("Diese Aktivität ist bereits importiert.", 409)
+    if external_id and conn.execute("SELECT 1 FROM activities WHERE external_id=?", (external_id,)).fetchone():
         raise Rejected("Diese Aktivität ist bereits importiert.", 409)
     try:
         parsed = fit_import.parse(data)
@@ -61,13 +72,45 @@ def import_fit(conn: sqlite3.Connection, data: bytes, filename: str) -> dict[str
     channels_meta = [{"key": c["key"], "label": c["label"], "unit": c["unit"]} for c in parsed["channels"].values()]
     conn.execute(
         """INSERT INTO activities (id,sha256,name,sport,sub_sport,start_time,duration_s,distance_m,avg_hr,avg_power,has_rr,
-                                   session_json,laps_json,channels_json,data_blob,hrv_blob,created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                   session_json,laps_json,channels_json,data_blob,hrv_blob,created_at,source,external_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (activity_id, digest, name, parsed["sport"], parsed["sub_sport"], parsed["start_time"],
          float(session.get("total_timer_time") or session.get("total_elapsed_time") or (t[-1] if t else 0)), float(session.get("total_distance") or 0),
          session.get("avg_heart_rate") or (sum(hr_vals) / len(hr_vals) if hr_vals else None), session.get("avg_power"),
          1 if analysis.get("available") else 0, json.dumps(session), json.dumps(parsed["laps"]), json.dumps(channels_meta),
-         _pack({"t": t, "channels": {k: c["values"] for k, c in parsed["channels"].items()}}), _pack(analysis), now_iso()),
+         _pack({"t": t, "channels": {k: c["values"] for k, c in parsed["channels"].items()}}), _pack(analysis), now_iso(), source, external_id),
+    )
+    return _summary(_row(conn, activity_id))
+
+
+SPORT_FROM_TYPE = {"Run": "running", "TrailRun": "running", "VirtualRun": "running", "Ride": "cycling", "VirtualRide": "cycling", "GravelRide": "cycling",
+                   "MountainBikeRide": "cycling", "Swim": "swimming", "OpenWaterSwim": "swimming", "Walk": "walking", "Hike": "hiking", "WeightTraining": "training"}
+
+
+def import_summary(conn: sqlite3.Connection, item: dict[str, Any]) -> dict[str, Any]:
+    """Aktivität ohne abrufbare Datei (z. B. manuell eingetragen oder von Strava): nur die Kennzahlen aus Intervals.icu."""
+    ext = str(item.get("id") or "")
+    if not ext:
+        raise Rejected("Die Aktivität hat keine Kennung.")
+    num = lambda *keys: next((float(item[k]) for k in keys if isinstance(item.get(k), (int, float)) and not isinstance(item.get(k), bool)), None)
+    sport = SPORT_FROM_TYPE.get(str(item.get("type") or ""), str(item.get("type") or "").lower())
+    session = {k: v for k, v in {
+        "sport": sport, "total_timer_time": num("moving_time", "elapsed_time"), "total_elapsed_time": num("elapsed_time"), "total_distance": num("distance"),
+        "avg_heart_rate": num("average_heartrate"), "max_heart_rate": num("max_heartrate"), "avg_power": num("icu_average_watts", "average_watts"),
+        "normalized_power": num("icu_weighted_avg_watts"), "training_stress_score": num("icu_training_load"), "total_ascent": num("total_elevation_gain"),
+        "enhanced_avg_speed": num("average_speed"),
+    }.items() if v is not None}
+    start = str(item.get("start_date") or item.get("start_date_local") or "")
+    name = str(item.get("name") or sport or "Aktivität").strip()[:120] or "Aktivität"
+    activity_id = str(uuid.uuid4())
+    conn.execute(
+        """INSERT INTO activities (id,sha256,name,sport,sub_sport,start_time,duration_s,distance_m,avg_hr,avg_power,has_rr,
+                                   session_json,laps_json,channels_json,data_blob,hrv_blob,created_at,source,external_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?)""",
+        (activity_id, f"intervals:{ext}", name, sport, "", start or None, session.get("total_timer_time", 0), session.get("total_distance", 0),
+         session.get("avg_heart_rate"), session.get("avg_power"), json.dumps(session), "[]", "[]", _pack({"t": [], "channels": {}}),
+         _pack({"available": False, "reason": "Für diese Aktivität liegen keine Messdaten vor (keine Datei bei Intervals.icu abrufbar)."}),
+         now_iso(), "intervals", ext),
     )
     return _summary(_row(conn, activity_id))
 
@@ -77,8 +120,16 @@ def list_activities(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 
 
 def delete_activity(conn: sqlite3.Connection, activity_id: str) -> None:
-    _row(conn, activity_id)
-    conn.execute("DELETE FROM activities WHERE id=?", (activity_id,))
+    row = _row(conn, activity_id)
+    conn.execute("BEGIN")
+    try:
+        if row["external_id"]:        # lokal gelöscht → der Sync holt sie nicht erneut
+            conn.execute("INSERT OR IGNORE INTO activity_ignored(external_id, ignored_at) VALUES(?,?)", (row["external_id"], now_iso()))
+        conn.execute("DELETE FROM activities WHERE id=?", (activity_id,))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def rename_activity(conn: sqlite3.Connection, activity_id: str, name: str) -> dict[str, Any]:
@@ -97,6 +148,8 @@ def _data(row: sqlite3.Row) -> dict[str, Any]:
 def detail(conn: sqlite3.Connection, activity_id: str, max_points: int = 6000) -> dict[str, Any]:
     row = _row(conn, activity_id)
     data = _data(row)
+    if not data["t"]:
+        return {**_summary(row), "session": json.loads(row["session_json"]), "laps": json.loads(row["laps_json"]), "channels": [], "t": [], "data": {}, "resolution_s": 0}
     t, cols = bucket_mean(data["t"], data["channels"], max_points)
     return {**_summary(row), "session": json.loads(row["session_json"]), "laps": json.loads(row["laps_json"]),
             "channels": json.loads(row["channels_json"]), "t": t, "data": cols, "resolution_s": round((data["t"][-1] - data["t"][0]) / max(1, len(t) - 1), 2) if len(t) > 1 else 0}
@@ -132,6 +185,8 @@ def table(conn: sqlite3.Connection, activity_id: str, bucket_s: int = 60) -> dic
         raise Rejected("Der Zeitabschnitt muss zwischen 10 und 900 Sekunden liegen.")
     row = _row(conn, activity_id)
     data = _data(row)
+    if not data["t"]:
+        return {"bucket_s": bucket_s, "columns": [], "rows": []}
     t = np.asarray(data["t"], dtype=float)
     meta = {c["key"]: c for c in json.loads(row["channels_json"])}
     idx = (t // bucket_s).astype(int)

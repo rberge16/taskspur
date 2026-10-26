@@ -35,7 +35,7 @@ export async function renderActivities(root, activityId = null) {
   });
   const rows = list.map((a) => h('a', { class: 'card activity-card', href: `#activities/${a.id}` },
     h('div', { class: 'card-top' }, h('small', {}, `${dateTime(a.start_time)} · ${SPORT[a.sport] || a.sport || 'Aktivität'}`),
-      h('span', { class: 'badges' }, a.has_rr ? h('em', { class: 'badge sync-sent' }, 'HRV') : h('em', { class: 'badge' }, 'ohne HRV'))),
+      h('span', { class: 'badges' }, a.source === 'intervals' ? h('em', { class: 'badge' }, 'Intervals.icu') : null, a.has_data ? null : h('em', { class: 'badge' }, 'nur Kennzahlen'), a.has_rr ? h('em', { class: 'badge sync-sent' }, 'HRV') : null)),
     h('strong', {}, a.name),
     h('span', { class: 'card-meta' }, [duration(a.duration_s), a.distance_m ? `${km(a.distance_m)} km` : null, a.avg_hr ? `Ø ${num(a.avg_hr, 0)} bpm` : null, a.avg_power ? `Ø ${num(a.avg_power, 0)} W` : null].filter(Boolean).join(' · '))));
   render(root, 
@@ -84,13 +84,13 @@ async function renderDetail(root, id) {
     h('h2', {}, a.name),
     h('p', { class: 'hint' }, `${dateTime(a.start_time)} · ${SPORT[a.sport] || a.sport}${a.sub_sport && a.sub_sport !== 'generic' ? ` (${a.sub_sport})` : ''}`),
     h('div', { class: 'actions' },
-      h('a', { class: 'secondary button-link', href: `/api/activities/${id}/export.csv`, download: '' }, 'Alle Messwerte als CSV'),
+      a.t.length ? h('a', { class: 'secondary button-link', href: `/api/activities/${id}/export.csv`, download: '' }, 'Alle Messwerte als CSV') : null,
       h('button', { type: 'button', class: 'secondary', onclick: async () => {
         const name = window.prompt('Neuer Name:', a.name); if (!name || name.trim() === a.name) return;
         try { await put(`/api/activities/${id}`, { name: name.trim() }); await renderActivities(root, id); } catch (e) { toast(e.message, 'error'); }
       } }, 'Umbenennen'),
       h('button', { type: 'button', class: 'danger', onclick: async () => {
-        if (!window.confirm(`Aktivität „${a.name}“ aus Taktspur löschen? Die Original-FIT-Datei bleibt unberührt.`)) return;
+        if (!window.confirm(`Aktivität „${a.name}“ aus Taktspur löschen?${a.external_id ? ' Sie wird beim Abgleich nicht erneut von Intervals.icu geholt.' : ''} Die Original-Datei und Intervals.icu bleiben unberührt.`)) return;
         try { await del(`/api/activities/${id}`); location.hash = '#activities'; } catch (e) { toast(e.message, 'error'); }
       } }, 'Löschen'))));
 
@@ -106,6 +106,12 @@ async function renderDetail(root, id) {
   out.push(section('Übersicht', h('div', { class: 'tiles' }, tiles.map(([k, v]) => h('div', { class: 'tile' }, h('small', {}, k), h('strong', {}, v)))),
     h('details', {}, h('summary', {}, 'Alle Sitzungswerte aus der Datei'),
       wrapTable(h('tbody', {}, Object.entries(s).filter(([k]) => !SKIP_DUP.has(k) || !(`enhanced_${k}` in s)).map(([k, v]) => tr(fieldRow(k, v))))))));
+
+  if (!a.t.length) {
+    out.push(section('Messdaten', h('p', { class: 'hint' }, 'Für diese Aktivität liegen keine Messkurven vor (bei Intervals.icu war keine Datei abrufbar, z. B. manuell eingetragen oder von Strava). Angezeigt werden die Kennzahlen.')));
+    render(root, ...out);
+    return;
+  }
 
   // Diagramme
   const t = a.t, d = a.data, labels = Object.fromEntries(a.channels.map((c) => [c.key, c]));

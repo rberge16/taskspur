@@ -77,6 +77,8 @@ def translate_http(exc: httpx.HTTPError, *, context: str) -> IntegrationError:
             return IntegrationError("rate_limited", "Intervals.icu begrenzt gerade die Anfragen. Bitte in einer Minute erneut versuchen.", 503)
         if 500 <= code <= 599:
             return IntegrationError("provider_down", f"Intervals.icu hat einen Serverfehler gemeldet (HTTP {code}). Bitte später erneut versuchen.", 503)
+        if context == "sync":
+            return IntegrationError("rejected", f"Intervals.icu hat die Anfrage abgelehnt (HTTP {code}).")
         return IntegrationError("rejected", f"Intervals.icu hat das Workout abgelehnt (HTTP {code}). Bitte Struktur und Datum prüfen.")
     if isinstance(exc, (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError)):
         return IntegrationError("unreachable", "Intervals.icu ist nicht erreichbar. Bitte Internetverbindung prüfen und erneut versuchen.", 503)
@@ -94,7 +96,8 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
     row = conn.execute("SELECT * FROM integration WHERE provider='intervals_icu'").fetchone()
     if row is None:
         return {"connected": False}
-    return {"connected": row["last_error"] is None, "athlete_id": row["athlete_id"], "verified_at": row["verified_at"], "last_error": row["last_error"]}
+    # has_key: ein Schlüssel ist gespeichert (der Schlüssel selbst verlässt das Backend nie)
+    return {"connected": row["last_error"] is None, "athlete_id": row["athlete_id"], "verified_at": row["verified_at"], "last_error": row["last_error"], "has_key": True}
 
 
 def connect(conn: sqlite3.Connection, athlete_id: str, api_key: str) -> dict[str, Any]:

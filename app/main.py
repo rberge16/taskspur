@@ -12,8 +12,8 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import activities, config, db, intervals, store
-from .schemas import BrickIn, ConnectionIn, LinkIn, PhaseIn, PlanIn, SettingsIn, WorkoutIn
+from . import activities, config, db, intervals, store, sync
+from .schemas import BrickIn, ConnectionIn, LinkIn, PhaseIn, PlanIn, SettingsIn, SyncIn, WorkoutIn
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
@@ -49,6 +49,8 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         holder["conn"] = db.open_database(database_path)
+        if sync.wanted_on_start(holder["conn"]):          # beim Start nach neuen Aktivitäten bei Intervals.icu schauen (im Hintergrund)
+            sync.start_background(database_path)
         yield
         holder["conn"].close()
 
@@ -248,6 +250,17 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     @app.delete("/api/intervals", status_code=204)
     def intervals_disconnect() -> None:
         intervals.disconnect(conn())
+
+    @app.get("/api/intervals/sync")
+    def sync_state() -> dict[str, Any]:
+        return sync.state(conn())
+
+    @app.post("/api/intervals/sync", status_code=202)
+    def sync_start(body: SyncIn | None = None) -> dict[str, Any]:
+        if not conn().execute("SELECT 1 FROM integration WHERE provider='intervals_icu'").fetchone():
+            raise intervals.IntegrationError("not_connected", "Intervals.icu ist nicht verbunden. Bitte unter Einstellungen verbinden.", 409)
+        sync.start_background(database_path, body.days if body else None)
+        return sync.state(conn())
 
     @app.get("/api/intervals/log")
     def intervals_log() -> list[dict[str, Any]]:

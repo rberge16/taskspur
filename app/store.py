@@ -32,6 +32,8 @@ def get_settings(conn: sqlite3.Connection) -> dict[str, Any]:
         "intervals_auto_send": rows.get("intervals_auto_send") == "true",  # nur ausdrücklich aktiviert
         "ftp": int(rows["ftp"]) if rows.get("ftp") else None,
         "lthr": int(rows["lthr"]) if rows.get("lthr") else None,
+        "intervals_history_days": int(rows["intervals_history_days"]) if rows.get("intervals_history_days") else 30,
+        "intervals_sync_on_start": rows.get("intervals_sync_on_start") != "false",   # Standard: an
     }
 
 
