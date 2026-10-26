@@ -265,6 +265,9 @@ function tableSection(id) {
   async function load(bucket) {
     try {
       const t = await get(`/api/activities/${id}/table?bucket=${bucket}`);
+      // DFA a1 immer direkt neben die Herzfrequenz (unabhängig von der Reihenfolge, die der Server liefert)
+      const a1 = t.columns.findIndex((c) => c.key === 'alpha1'), hr = t.columns.findIndex((c) => c.key === 'heart_rate');
+      if (a1 >= 0) { const [col] = t.columns.splice(a1, 1); col.label = 'DFA a1 Ø'; t.columns.splice(hr >= 0 ? t.columns.findIndex((c) => c.key === 'heart_rate') + 1 : t.columns.length, 0, col); }
       const fmt = (c, v) => (v === null || v === undefined ? '–' : c.key === 'pace_s_per_km' ? pace(v) : c.key === 'speed' ? `${kmh(v)}` : c.key === 'distance' ? km(v) : c.key === 'alpha1' ? num(v, 2) : num(v, Math.abs(v) >= 100 ? 0 : 1));
       holder.replaceChildren(wrapTable(
         h('thead', {}, tr(['Zeit', ...t.columns.map((c) => (c.key === 'speed' ? 'Geschwindigkeit (km/h)' : c.key === 'distance' ? 'Distanz (km)' : c.key === 'heart_rate' ? 'Ø Herzfrequenz (bpm)' : c.unit ? `${c.label} (${c.unit})` : c.label))], true)),
