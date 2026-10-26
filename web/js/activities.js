@@ -116,7 +116,7 @@ async function renderDetail(root, id) {
   // Diagramme
   const t = a.t, d = a.data, labels = Object.fromEntries(a.channels.map((c) => [c.key, c]));
   // Rundengrenzen als Haarlinien (schaltbar, gilt für alle Diagramme); erste Runde beginnt bei 0 und braucht keine Linie
-  const lapStarts = (a.lap_bounds || []).map((l, i) => ({ t: l.from_s, n: i + 1 })).filter((l) => l.t !== null && l.t > 1);
+  const lapStarts = lapBounds(a).map((l, i) => ({ t: l.from_s, n: i + 1 })).filter((l) => l.t !== null && l.t > 1);
   const marks = { on: false, times: lapStarts.map((l) => l.t), labels: lapStarts.map((l) => `R${l.n}`) };
   const lapToggle = h('label', { class: 'check' },
     h('input', { type: 'checkbox', id: 'lap-lines', disabled: !lapStarts.length, onchange: (e) => { marks.on = e.target.checked; charts.forEach((c) => c.plot.redraw(false)); } }),
@@ -210,6 +210,22 @@ async function renderHrvCharts(root, hrv, marks) {
     note: 'Die Achse zeigt den Normalbereich; einzelne extreme Artefakte (> 2 s oder sehr kurz) liegen außerhalb und sind in den Kennzahlen mitgezählt.',
     series: [{ label: 'RR-Intervall', unit: 'ms', values: hrv.rr.ms, color: '#2563eb', format: (v) => num(v, 0) },
       { label: 'Artefakt', unit: 'ms', values: hrv.rr.ms.map((v, i) => (hrv.rr.artifact[i] ? v : null)), points: true, color: '#b42318', format: (v) => num(v, 0) }] }));
+}
+
+// Rundengrenzen in Sekunden ab Aufzeichnungsbeginn. Der Server liefert sie fertig; ältere Server-Versionen nicht –
+// dann werden sie hier aus den Startzeiten (oder den aufsummierten Dauern) berechnet.
+function lapBounds(a) {
+  if (Array.isArray(a.lap_bounds)) return a.lap_bounds;
+  const t0 = a.start_time ? new Date(a.start_time).getTime() : NaN;
+  let running = 0;
+  return (a.laps || []).map((l) => {
+    const len = l.total_elapsed_time ?? l.total_timer_time;
+    if (!len) return { from_s: null, to_s: null };
+    const st = l.start_time ? new Date(l.start_time).getTime() : NaN;
+    const from = Number.isNaN(t0) || Number.isNaN(st) ? running : (st - t0) / 1000;
+    running = from + len;
+    return { from_s: Math.round(from * 10) / 10, to_s: Math.round((from + len) * 10) / 10 };
+  });
 }
 
 // ---------- Runden ----------
