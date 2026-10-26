@@ -17,3 +17,7 @@ backups/
 *.db-shm
 *.key
 secret.key
+
+# Echte Aktivitätsdateien gehören nie ins Repository
+*.fit
+*.fit.gz
