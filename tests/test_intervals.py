@@ -101,6 +101,7 @@ def test_sport_mapping_does_not_turn_everything_into_ride(client, fake, sport, e
 
 def test_status_values_visible_in_workout(client, fake):
     connect(client)
+    client.put("/api/settings", json={"intervals_auto_send": False})
     w = create(client)
     assert w["sync_status"] == "none"
     client.post(f"/api/workouts/{w['id']}/send")
@@ -212,6 +213,7 @@ def test_delete_keeps_local_when_remote_fails(client, fake):
 
 def test_delete_never_sent_workout_makes_no_remote_call(client, fake):
     connect(client)
+    client.put("/api/settings", json={"intervals_auto_send": False})
     w = create(client)
     n = len(fake.calls)
     client.delete(f"/api/workouts/{w['id']}")
@@ -220,16 +222,34 @@ def test_delete_never_sent_workout_makes_no_remote_call(client, fake):
 
 # ---------- Automatische Übertragung ----------
 
-def test_auto_send_only_when_explicitly_enabled(client, fake):
+def test_sync_default_on_send_update_delete(client, fake):
+    """Geplante Workouts: senden, bei Änderung aktualisieren, beim Löschen entfernen."""
     connect(client)
-    assert client.get("/api/settings").json()["intervals_auto_send"] is False  # Standard: aus
+    assert client.get("/api/settings").json()["intervals_auto_send"] is True
+    w = client.post("/api/workouts", json=workout(title="a")).json()["workouts"][0]
+    assert len(fake.posts()) == 1 and w["sync_status"] == "sent"
+    r = client.put(f"/api/workouts/{w['id']}", json=workout(title="b")).json()
+    assert len(fake.posts()) == 2 and r["workouts"][0]["sync_status"] == "sent"
+    assert fake.events[f"taktspur-workout-{w['id']}"]["name"] == "b"
+    client.delete(f"/api/workouts/{w['id']}")
+    assert fake.events == {}
+
+
+def test_sync_off_still_updates_already_sent_but_never_sends_new(client, fake):
+    connect(client)
+    client.put("/api/settings", json={"intervals_auto_send": False})
     w = create(client)
     client.put(f"/api/workouts/{w['id']}", json=workout(title="x"))
-    assert fake.posts() == []  # auch bereits bekannte/übertragene Einheiten werden nicht automatisch gesendet
+    assert fake.posts() == []  # neue Einheit wird bei "aus" nicht gesendet
     client.post(f"/api/workouts/{w['id']}/send")
     posts = len(fake.posts())
     client.put(f"/api/workouts/{w['id']}", json=workout(title="y"))
-    assert len(fake.posts()) == posts  # synchronisierte Einheit: bei "aus" ebenfalls kein Auto-Send
+    assert len(fake.posts()) == posts + 1  # bereits übertragene Einheit bleibt aktuell
+
+
+def test_sync_without_connection_does_nothing_quietly(client, fake):
+    r = client.post("/api/workouts", json=workout())
+    assert r.status_code == 201 and r.json()["workouts"][0]["sync_status"] == "none" and fake.calls == []
 
 
 def test_auto_send_when_enabled_uses_same_protection(client, fake):

@@ -35,14 +35,15 @@ export async function renderSettings(root) {
       st.has_key ? h('button', { type: 'button', class: 'danger', onclick: async () => { if (!window.confirm('Verbindung trennen und gespeicherten Schlüssel löschen?')) return; try { await del('/api/intervals'); toast('Verbindung getrennt.', 'success'); await refresh(); } catch (err) { fail(err); } } }, 'Trennen') : null));
 
   const auto = h('input', { type: 'checkbox', checked: settings.intervals_auto_send, onchange: async (e) => {
-    try { await put('/api/settings', { intervals_auto_send: e.target.checked }); toast(e.target.checked ? 'Automatische Übertragung ist an.' : 'Automatische Übertragung ist aus.', 'success'); }
+    try { await put('/api/settings', { intervals_auto_send: e.target.checked }); toast(e.target.checked ? 'Automatischer Abgleich geplanter Workouts ist an.' : 'Automatischer Abgleich ist aus (bereits übertragene werden weiter nachgeführt).', 'success'); }
     catch (err) { e.target.checked = !e.target.checked; toast(err.message, 'error'); }
   } });
   const numberField = (label, key, min, max) => h('label', { class: 'field' }, h('span', {}, label), h('input', { type: 'number', min, max, value: settings[key] ?? '', placeholder: 'optional',
     onchange: async (e) => { if (e.target.value === '') return; try { await put('/api/settings', { [key]: Number(e.target.value) }); toast('Gespeichert.', 'success'); } catch (err) { toast(err.message, 'error'); } } }));
 
-  const prefs = h('section', { class: 'panel-box' }, h('h3', {}, 'Übertragung & Zonen'),
-    h('label', { class: 'check' }, auto, h('span', {}, 'Einheiten beim Speichern automatisch an Intervals.icu senden (Standard: aus)')),
+  const prefs = h('section', { class: 'panel-box' }, h('h3', {}, 'Geplante Workouts & Zonen'),
+    h('label', { class: 'check' }, auto, h('span', {}, 'In Taktspur geplante Workouts automatisch mit Intervals.icu abgleichen')),
+    h('p', { class: 'hint' }, 'An: neue Workouts werden gesendet, Änderungen aktualisiert, beim Löschen wird das Workout auch in Intervals.icu entfernt. Aus: nichts wird automatisch gesendet; bereits übertragene Workouts werden bei Änderung und Löschen trotzdem nachgeführt. Betroffen sind nur in Taktspur geplante Workouts – importierte und absolvierte Aktivitäten werden nie zurückgeschrieben oder gelöscht.'),
     h('div', { class: 'row' }, numberField('FTP (Watt) für die TSS-Schätzung', 'ftp', 50, 600), numberField('Schwellen-HF (bpm)', 'lthr', 80, 230)),
     h('p', { class: 'hint' }, 'FTP und Schwellen-HF werden für individuelle Zielbereiche und die TSS-Schätzung genutzt. Ohne Angabe zählt die gewählte Zielzone.'));
 

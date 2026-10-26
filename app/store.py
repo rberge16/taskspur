@@ -29,7 +29,7 @@ class Rejected(Exception):
 def get_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     rows = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM settings")}
     return {
-        "intervals_auto_send": rows.get("intervals_auto_send") == "true",  # nur ausdrücklich aktiviert
+        "intervals_auto_send": rows.get("intervals_auto_send") != "false",  # Standard: an (wirkt nur bei bestehender Verbindung)
         "ftp": int(rows["ftp"]) if rows.get("ftp") else None,
         "lthr": int(rows["lthr"]) if rows.get("lthr") else None,
         "intervals_history_days": int(rows["intervals_history_days"]) if rows.get("intervals_history_days") else 30,

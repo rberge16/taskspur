@@ -161,17 +161,23 @@ def create_app(database_path: Path | None = None) -> FastAPI:
 
     # ----- Workouts -----
     def auto_send(ids: list[str]) -> dict[str, Any]:
-        """Automatische Übertragung: nur wenn ausdrücklich aktiviert; gleicher Schutz wie manuell."""
-        if not store.get_settings(conn())["intervals_auto_send"]:
+        """Geplante Taktspur-Workouts mit Intervals.icu abgleichen (gleicher Schutz wie manuell).
+        Eingeschaltet: neue Einheiten senden, geänderte aktualisieren. Ausgeschaltet: nur bereits übertragene aktualisieren,
+        damit Intervals.icu nie veraltet. Ohne Verbindung passiert nichts (kein Fehlerstatus an jeder Einheit)."""
+        if not conn().execute("SELECT 1 FROM integration WHERE provider='intervals_icu'").fetchone():
             return {"auto": False}
+        on = store.get_settings(conn())["intervals_auto_send"]
         results = []
         for wid in ids:
+            current = store.get_workout(conn(), wid)
+            if current["read_only"] or not (on or current["synced_at"]):
+                continue
             try:
                 intervals.send_workout(conn(), wid, automatic=True)
                 results.append({"id": wid, "ok": True})
             except intervals.IntegrationError as exc:
                 results.append({"id": wid, "ok": False, "code": exc.code, "message": exc.message})
-        return {"auto": True, "results": results}
+        return {"auto": on, "results": results}
 
     def with_sync(workouts: list[dict[str, Any]], ids: list[str]) -> dict[str, Any]:
         info = auto_send(ids)

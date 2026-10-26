@@ -177,3 +177,4 @@ tbody tr:nth-child(even) td:first-child { background: color-mix(in srgb, var(--l
 .chip.activity { text-decoration: none; color: inherit; border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, var(--surface)); }
 .done-mark { font-size: .7rem; background: var(--ok); color: #fff; padding: 0 .25rem; border-radius: .25rem; }
 .card.done { border-left-color: var(--ok); }
+.check + .hint { margin: .35rem 0 1rem; }

@@ -87,7 +87,7 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
     if (p.read_only) {
       children.push(h('p', { class: 'sync-line' }, 'Schreibgeschützt: Importierte und absolvierte Einträge werden nie zurückgeschrieben.'));
     } else if (!p.id) {
-      children.push(h('p', { class: 'sync-line' }, 'Nach dem Speichern kann die Einheit an Intervals.icu gesendet werden.'));
+      children.push(h('p', { class: 'sync-line' }, 'Geplante Einheiten werden beim Speichern mit Intervals.icu abgeglichen (Einstellungen), sofern verbunden.'));
       issues.forEach((i) => children.push(h('span', { class: 'pill warn' }, i)));
     } else {
       children.push(h('span', { class: `pill ${state}`, role: 'status' }, STATUS_TEXT[state]));
@@ -150,10 +150,10 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
   }
 
   function reportAuto(info) {
-    if (!info || !info.auto) return;
+    if (!info || !info.results || !info.results.length) return;
     const failed = info.results.filter((r) => !r.ok);
-    if (failed.length) toast(`Einheit gespeichert. Automatische Übertragung fehlgeschlagen: ${failed[0].message}`, 'error', 8000);
-    else toast('Einheit gespeichert und automatisch an Intervals.icu übertragen.', 'success');
+    if (failed.length) toast(`Einheit gespeichert. Abgleich mit Intervals.icu fehlgeschlagen: ${failed[0].message}`, 'error', 8000);
+    else toast('Einheit gespeichert und mit Intervals.icu abgeglichen.', 'success');
   }
 
   async function remove() {
