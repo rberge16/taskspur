@@ -1,11 +1,11 @@
 import { del, get, post, put } from './api.js';
-import { h, toast } from './dom.js';
+import { h, render, toast } from './dom.js';
 
 const STATUS = { active: 'Aktiv', inactive: 'Inaktiv', draft: 'Entwurf' };
 
 export async function renderPlans(root) {
   let plans;
-  try { plans = await get('/api/plans'); } catch (e) { root.replaceChildren(h('p', { class: 'form-message error', role: 'alert' }, e.message)); return; }
+  try { plans = await get('/api/plans'); } catch (e) { render(root, h('p', { class: 'form-message error', role: 'alert' }, e.message)); return; }
   const refresh = () => renderPlans(root);
   const run = async (fn, ok) => { try { await fn(); if (ok) toast(ok, 'success'); await refresh(); } catch (e) { toast(e.message, 'error', 8000); } };
 
@@ -56,5 +56,5 @@ export async function renderPlans(root) {
       h('label', { class: 'field' }, h('span', {}, 'Ende'), h('input', { name: 'end', type: 'date', required: true })),
       h('button', { type: 'submit', class: 'secondary' }, '+ Phase')));
 
-  root.replaceChildren(h('h2', {}, 'Trainingspläne'), plans.length ? plans.map(planCard) : h('p', { class: 'empty' }, 'Noch kein Plan. Lege unten deinen ersten Plan an.'), newForm);
+  render(root, h('h2', {}, 'Trainingspläne'), plans.length ? plans.map(planCard) : h('p', { class: 'empty' }, 'Noch kein Plan. Lege unten deinen ersten Plan an.'), newForm);
 }

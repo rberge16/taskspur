@@ -57,3 +57,26 @@ def _lttb_segment(xs, ys, threshold):
         a = best_i
     sampled.append((xs[-1], ys[-1]))
     return [p[0] for p in sampled], [p[1] for p in sampled]
+
+
+def bucket_mean(t: Sequence[float], columns: dict[str, Sequence[float | None]], max_points: int) -> tuple[list[float], dict[str, list[float | None]]]:
+    """Gemeinsames Zeitraster für alle Kanäle: Mittelwert je Zeitfenster. Ab ≤ max_points bleibt alles unverändert (volle Auflösung)."""
+    n = len(t)
+    if max_points < 2 or n <= max_points:
+        return list(t), {k: list(v) for k, v in columns.items()}
+    width = (t[-1] - t[0]) / max_points or 1.0
+    out_t: list[float] = []
+    out: dict[str, list[float | None]] = {k: [] for k in columns}
+    i = 0
+    while i < n:
+        edge = t[0] + (int((t[i] - t[0]) / width) + 1) * width
+        j = i
+        while j < n and t[j] < edge:
+            j += 1
+        j = max(j, i + 1)
+        out_t.append(round(sum(t[i:j]) / (j - i), 1))
+        for k, col in columns.items():
+            vals = [v for v in col[i:j] if v is not None]
+            out[k].append(round(sum(vals) / len(vals), 3) if vals else None)
+        i = j
+    return out_t, out

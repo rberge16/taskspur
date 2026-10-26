@@ -1,10 +1,10 @@
 import { del, get, post, put } from './api.js';
-import { h, toast } from './dom.js';
+import { h, render, toast } from './dom.js';
 
 export async function renderSettings(root) {
   let st, settings, log;
   try { [st, settings, log] = await Promise.all([get('/api/intervals'), get('/api/settings'), get('/api/intervals/log')]); }
-  catch (e) { root.replaceChildren(h('p', { class: 'form-message error', role: 'alert' }, e.message)); return; }
+  catch (e) { render(root, h('p', { class: 'form-message error', role: 'alert' }, e.message)); return; }
   const refresh = () => renderSettings(root);
   const message = h('p', { class: 'form-message', role: 'alert', hidden: true });
   const fail = (e) => { message.textContent = e.message; message.className = 'form-message error'; message.hidden = false; };
@@ -47,5 +47,5 @@ export async function renderSettings(root) {
   const logBox = h('section', { class: 'panel-box' }, h('h3', {}, 'Übertragungsprotokoll'),
     log.length ? h('ul', { class: 'log' }, log.map((l) => h('li', { class: l.level }, h('time', {}, l.at.replace('T', ' ').slice(0, 16)), ' ', l.message))) : h('p', { class: 'empty' }, 'Noch keine Einträge.'));
 
-  root.replaceChildren(h('h2', {}, 'Einstellungen'), form, prefs, logBox);
+  render(root, h('h2', {}, 'Einstellungen'), form, prefs, logBox);
 }

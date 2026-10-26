@@ -145,3 +145,29 @@ dialog#editor > form, dialog#editor > div { padding: 1rem; }
 .chart .u-select { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 dialog#editor .panel { border: 0; padding: 0; background: none; margin: 0; }
 @media (max-width: 40rem) { dialog#editor > form, dialog#editor > div { padding: .75rem; } }
+
+/* Aktivitäten */
+a.card { color: inherit; text-decoration: none; }
+a.card:hover { border-color: var(--accent); }
+.button-link { display: inline-flex; align-items: center; text-decoration: none; color: inherit; }
+.act-head h2 { margin-bottom: .1rem; overflow-wrap: anywhere; }
+.act-section { overflow: hidden; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .5rem; margin-bottom: .75rem; }
+.tile { padding: .5rem .65rem; background: var(--bg); border-radius: var(--radius); display: flex; flex-direction: column; min-width: 0; }
+.tile strong { font-size: 1.1rem; overflow-wrap: anywhere; }
+.table-wrap { overflow-x: auto; max-width: 100%; margin: .5rem 0; border: 1px solid var(--line); border-radius: var(--radius); -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: .875rem; font-variant-numeric: tabular-nums; }
+th, td { padding: .35rem .6rem; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { position: sticky; top: 0; background: var(--surface); font-weight: 600; }
+th:first-child, td:first-child { text-align: left; }
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--line) 25%, transparent); }
+details { margin: .5rem 0; }
+summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; color: var(--accent); }
+.method p { margin: .4rem 0; }
+.chart-note { margin: .3rem 0 0; font-size: .85rem; }
+.field.narrow { max-width: 14rem; }
+a.button-link { min-height: var(--tap); padding: 0 1rem; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
+a.button-link:hover { border-color: var(--accent); }
+th:first-child, td:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+tbody tr:nth-child(even) td:first-child { background: color-mix(in srgb, var(--line) 25%, var(--surface)); }
+@media (max-width: 40rem) { #nav { gap: 0; } #nav button { padding: 0 .55rem; font-size: .9rem; } }

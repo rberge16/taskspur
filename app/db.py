@@ -78,6 +78,30 @@ MIGRATIONS: list[str] = [
         workout_id TEXT
     );
     """,
+    # 2: Aktivitäten (importierte FIT-Dateien; rein additiv)
+    """
+    CREATE TABLE activities (
+        id TEXT PRIMARY KEY,
+        sha256 TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        sport TEXT NOT NULL DEFAULT '',
+        sub_sport TEXT NOT NULL DEFAULT '',
+        start_time TEXT,
+        duration_s REAL NOT NULL DEFAULT 0,
+        distance_m REAL NOT NULL DEFAULT 0,
+        avg_hr REAL,
+        avg_power REAL,
+        has_rr INTEGER NOT NULL DEFAULT 0,
+        workout_id TEXT,
+        session_json TEXT NOT NULL DEFAULT '{}',
+        laps_json TEXT NOT NULL DEFAULT '[]',
+        channels_json TEXT NOT NULL DEFAULT '[]',
+        data_blob BLOB NOT NULL,
+        hrv_blob BLOB,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX idx_activities_start ON activities(start_time);
+    """,
 ]
 
 

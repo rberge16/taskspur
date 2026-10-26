@@ -31,3 +31,8 @@ export function toast(message, kind = 'info', ms = 5000) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.className = ''; }, ms);
 }
+
+/** Ersetzt den Inhalt von `el`. Arrays werden abgeflacht, null/false übersprungen (replaceChildren würde Arrays als Text ausgeben). */
+export function render(el, ...children) {
+  el.replaceChildren(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false).map((c) => (c instanceof Node ? c : document.createTextNode(String(c)))));
+}

@@ -1,6 +1,6 @@
 // Kalender: Monat, Woche, Liste. Jede Ansicht wird komplett neu aufgebaut; Listener hängen nur an den neuen Elementen.
 import { get } from './api.js';
-import { h } from './dom.js';
+import { h, render } from './dom.js';
 import { openEditor } from './editor.js';
 
 const DAY_NAMES = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -23,7 +23,7 @@ export async function renderCalendar(root) {
   try {
     [workouts, plans] = await Promise.all([get('/api/workouts'), get('/api/plans')]);
   } catch (e) {
-    root.replaceChildren(h('p', { class: 'form-message error', role: 'alert' }, e.message));
+    render(root, h('p', { class: 'form-message error', role: 'alert' }, e.message));
     return;
   }
   const refresh = () => renderCalendar(root);
@@ -111,5 +111,5 @@ export async function renderCalendar(root) {
       days.length ? days.map((k) => h('section', { class: 'list-day' }, h('h3', {}, longDay(k)), byDate.get(k).map(card))) : h('p', { class: 'empty' }, 'In diesem Monat gibt es keine Einheiten.'));
   }
   const undatedBox = undated.length ? h('section', { class: 'undated' }, h('h3', {}, 'Ohne Datum'), undated.map(card)) : null;
-  root.replaceChildren(...[toolbar, body, undatedBox].filter(Boolean));
+  render(root, toolbar, body, undatedBox);
 }

@@ -23,3 +23,10 @@ Windows-Start und echte Browser-Darstellung sind nur im Linux-Test nicht geprüf
 - Browser: uPlot (lokal in `web/vendor/uplot`, MIT), Wrapper `web/js/charts.js` → `lineChart(container, {title, x, series})`. Zoom per Ziehen, Doppelklick setzt zurück, passt sich der Breite an.
 - Server: `app/downsample.py` (LTTB) reduziert lange Zeitreihen auf einige hundert Punkte, Lücken bleiben erhalten – der Raspberry Pi rendert nichts, er liefert nur reduzierte Daten.
 - Tests: `tests/frontend/browser.js` (echter Chromium: Layout Handy/PC, CSP, Diagramm), `tests/frontend/smoke.js` (jsdom).
+
+## Aktivitäten, FIT-Import und HRV (DFA a1)
+- Aktivitäten → „FIT-Dateien importieren“ (mehrere Dateien möglich, Dubletten werden erkannt). GPS-Koordinaten und Profildaten aus der Datei werden **nicht** gespeichert.
+- Alle Kanäle der Datei werden als Diagramme gezeigt (Pace/Tempo, Herzfrequenz, Leistung, Höhe, Kadenz, Schrittlänge, Laufdynamik, Atmung, Temperatur, unbekannte Zusatzfelder), dazu Übersicht, alle Sitzungs- und Rundenwerte, eine Tabelle pro Zeitabschnitt (30 s bis 5 min) und der CSV-Export der Rohwerte.
+- DFA a1 wird **nur aus echten RR-Intervallen** der Datei berechnet (Kubios-ähnlich: λ = 500, Boxgrößen 4–16, 120-s-Fenster, Artefakterkennung, ungültige Fenster bleiben leer). Ohne RR-Daten zeigt Taktspur das ausdrücklich an. Schwellen-Schätzung nur, wenn die Belastung den Bereich um a1 = 0,75 abdeckt.
+- Neue Abhängigkeiten: `fitdecode`, `numpy` (auf dem Raspberry Pi per `pip` als fertiges Paket; 32-bit-OS über piwheels).
+- Schema-Version 2 (additiv): vor der Migration entsteht automatisch ein Backup.

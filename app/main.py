@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import config, db, intervals, store
+from . import activities, config, db, intervals, store
 from .schemas import BrickIn, ConnectionIn, LinkIn, PhaseIn, PlanIn, SettingsIn, WorkoutIn
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
@@ -116,6 +117,45 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     @app.delete("/api/phases/{phase_id}", status_code=204)
     def phase_delete(phase_id: str) -> None:
         store.delete_phase(conn(), phase_id)
+
+    # ----- Aktivitäten (FIT-Import) -----
+    @app.post("/api/activities", status_code=201)
+    async def activity_import(request: Request, filename: str = Query(default="Aktivität", max_length=200)) -> dict[str, Any]:
+        """Roher Datei-Upload (Body = FIT-Datei). Benötigt wie jede Änderung den Header X-Requested-With."""
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > activities.fit_import.MAX_BYTES:
+            raise store.Rejected("Die Datei ist größer als 30 MB.", 413)
+        body = await request.body()
+        return await run_in_threadpool(activities.import_fit, conn(), body, filename)
+
+    @app.get("/api/activities")
+    def activity_list() -> list[dict[str, Any]]:
+        return activities.list_activities(conn())
+
+    @app.get("/api/activities/{activity_id}")
+    def activity_detail(activity_id: str, max_points: int = Query(default=6000, ge=200, le=30000)) -> dict[str, Any]:
+        return activities.detail(conn(), activity_id, max_points)
+
+    @app.get("/api/activities/{activity_id}/hrv")
+    def activity_hrv(activity_id: str) -> dict[str, Any]:
+        return activities.hrv_detail(conn(), activity_id)
+
+    @app.get("/api/activities/{activity_id}/table")
+    def activity_table(activity_id: str, bucket: int = Query(default=60, ge=10, le=900)) -> dict[str, Any]:
+        return activities.table(conn(), activity_id, bucket)
+
+    @app.get("/api/activities/{activity_id}/export.csv")
+    def activity_csv(activity_id: str) -> Response:
+        text, name = activities.csv_export(conn(), activity_id)
+        return Response(text, media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f"attachment; filename*=UTF-8''{name}"})
+
+    @app.put("/api/activities/{activity_id}")
+    def activity_rename(activity_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        return activities.rename_activity(conn(), activity_id, str(body.get("name", "")))
+
+    @app.delete("/api/activities/{activity_id}", status_code=204)
+    def activity_delete(activity_id: str) -> None:
+        activities.delete_activity(conn(), activity_id)
 
     # ----- Workouts -----
     def auto_send(ids: list[str]) -> dict[str, Any]:
