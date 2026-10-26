@@ -154,4 +154,13 @@ def test_lap_alpha1_assigns_windows_by_midpoint_and_leaves_short_laps_empty():
     assert result[0]["alpha1_mean"] == 0.9 and result[0]["windows"] == 2
     assert result[1]["alpha1_mean"] is None and result[1]["windows"] == 0
     assert result[2]["alpha1_mean"] == 0.4 and result[2]["from_s"] == 360.0
-    assert result[3]["from_s"] is None and result[3]["alpha1_mean"] is None
+    assert result[3]["from_s"] == 660.0 and result[3]["alpha1_mean"] is None   # ohne Startzeit: direkt nach der vorigen Runde
+
+
+def test_lap_bounds_fall_back_to_cumulative_durations_without_start_time():
+    import json
+
+    from app import activities
+
+    row = {"start_time": "2026-01-01T10:00:00", "laps_json": json.dumps([{"total_elapsed_time": 100}, {"total_elapsed_time": 50}])}
+    assert activities._lap_bounds(row) == [(0.0, 100.0), (100.0, 150.0)]

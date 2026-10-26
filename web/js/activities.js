@@ -118,7 +118,9 @@ async function renderDetail(root, id) {
   // Rundengrenzen als Haarlinien (schaltbar, gilt für alle Diagramme); erste Runde beginnt bei 0 und braucht keine Linie
   const lapStarts = (a.lap_bounds || []).map((l, i) => ({ t: l.from_s, n: i + 1 })).filter((l) => l.t !== null && l.t > 1);
   const marks = { on: false, times: lapStarts.map((l) => l.t), labels: lapStarts.map((l) => `R${l.n}`) };
-  const lapToggle = lapStarts.length ? h('label', { class: 'check' }, h('input', { type: 'checkbox', id: 'lap-lines', onchange: (e) => { marks.on = e.target.checked; charts.forEach((c) => c.plot.redraw(false)); } }), h('span', {}, `Runden als Linien einblenden (${lapStarts.length + 1} Runden)`)) : null;
+  const lapToggle = h('label', { class: 'check' },
+    h('input', { type: 'checkbox', id: 'lap-lines', disabled: !lapStarts.length, onchange: (e) => { marks.on = e.target.checked; charts.forEach((c) => c.plot.redraw(false)); } }),
+    h('span', {}, lapStarts.length ? `Runden als Linien einblenden (${lapStarts.length + 1} Runden)` : `Runden als Linien einblenden – nicht möglich: ${(a.laps || []).length > 1 ? 'Rundenzeiten fehlen in der Datei' : 'diese Aktivität hat nur eine Runde'}`));
   const chartSection = h('section', { class: 'panel-box act-section' }, h('h3', {}, 'Verlauf'), h('p', { class: 'hint' }, 'Ziehen zum Zoomen (gilt für alle Diagramme), Doppelklick setzt zurück. Die Legende zeigt die Werte unter dem Mauszeiger.'), lapToggle);
   out.push(chartSection);
   const used = new Set();

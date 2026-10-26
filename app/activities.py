@@ -193,14 +193,16 @@ def _lap_bounds(row: sqlite3.Row) -> list[tuple[float, float]]:
 
     t0 = parse(row["start_time"])
     bounds: list[tuple[float, float]] = []
+    running = 0.0   # Ersatz, falls eine Runde keine Startzeit hat: Summe der vorherigen Rundendauern
     for lap in json.loads(row["laps_json"]):
         start = parse(lap.get("start_time"))
         length = lap.get("total_elapsed_time") or lap.get("total_timer_time")
-        if t0 is None or start is None or not length:
+        if not length:
             bounds.append((float("nan"), float("nan")))
             continue
-        offset = (start - t0).total_seconds()
+        offset = (start - t0).total_seconds() if (t0 is not None and start is not None) else running
         bounds.append((offset, offset + float(length)))
+        running = offset + float(length)
     return bounds
 
 
