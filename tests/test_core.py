@@ -220,3 +220,48 @@ def test_security_headers(client):
 def test_no_openapi_or_docs_exposed(client):
     assert client.get("/docs").status_code in (404, 405) or "text/html" not in client.get("/docs").headers.get("content-type", "")
     assert client.get("/openapi.json").status_code in (404, 405) or "openapi" not in client.get("/openapi.json").text[:50]
+
+
+# ---------- Nachträgliches Koppeln ----------
+def _single(client, **over):
+    r = client.post("/api/workouts", json=workout(**over))
+    assert r.status_code == 201, r.text
+    return r.json()["workouts"][0]
+
+
+def test_link_existing_singles_into_brick(client):
+    a = _single(client, title="Rad", date="2026-11-10", start_time="08:00")
+    b = _single(client, title="Lauf", sport="Laufen", date="2026-11-12", start_time="18:00")
+    r = client.post(f"/api/workouts/{a['id']}/link", json={"second_id": b["id"]})
+    assert r.status_code == 200, r.text
+    first, second = r.json()
+    assert (first["link_order"], second["link_order"]) == (1, 2) and first["link_group"] == second["link_group"]
+    assert (second["date"], second["start_time"]) == ("2026-11-10", "08:10")      # direkt nach Teil 1
+    assert second["title"] == "Lauf" and second["sport"] == "Laufen"              # eigener Inhalt bleibt
+    # Danach gelten die Brick-Regeln: Teil 2 kann nicht abdriften
+    client.put(f"/api/workouts/{second['id']}", json=workout(title="Lauf", sport="Laufen", date="2027-01-01", start_time="03:00"))
+    assert client.get(f"/api/workouts/{second['id']}").json()["date"] == "2026-11-10"
+
+
+def test_link_rejects_invalid_pairs(client):
+    a = _single(client, title="A", date="2026-11-10")
+    b = _single(client, title="B", date="2026-11-11")
+    c = _single(client, title="C", date="2026-11-12")
+    free = _single(client, title="Frei", date=None, start_time=None)
+    assert client.post(f"/api/workouts/{a['id']}/link", json={"second_id": a["id"]}).status_code >= 400
+    assert client.post(f"/api/workouts/{free['id']}/link", json={"second_id": a["id"]}).status_code >= 400   # Teil 1 ohne Datum
+    assert client.post(f"/api/workouts/{a['id']}/link", json={"second_id": "gibt-es-nicht"}).status_code == 404
+    assert client.post(f"/api/workouts/{a['id']}/link", json={"second_id": b["id"]}).status_code == 200
+    assert client.post(f"/api/workouts/{c['id']}/link", json={"second_id": b["id"]}).status_code >= 400     # b schon gekoppelt
+    # unverändert
+    assert client.get(f"/api/workouts/{c['id']}").json()["link_group"] is None
+
+
+def test_link_resets_sent_status_of_moved_part2(client, fake):
+    client.put("/api/intervals", json={"athlete_id": "i1", "api_key": "k-123456789"})
+    a = _single(client, title="A", date="2026-11-10", start_time="08:00")
+    b = _single(client, title="B", date="2026-11-15", start_time="18:00")
+    assert client.post(f"/api/workouts/{b['id']}/send").status_code == 200
+    assert client.get(f"/api/workouts/{b['id']}").json()["sync_status"] == "sent"
+    client.post(f"/api/workouts/{a['id']}/link", json={"second_id": b["id"]})
+    assert client.get(f"/api/workouts/{b['id']}").json()["sync_status"] == "none"

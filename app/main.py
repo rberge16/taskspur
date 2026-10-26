@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import config, db, intervals, store
-from .schemas import BrickIn, ConnectionIn, PhaseIn, PlanIn, SettingsIn, WorkoutIn
+from .schemas import BrickIn, ConnectionIn, LinkIn, PhaseIn, PlanIn, SettingsIn, WorkoutIn
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
@@ -171,6 +171,11 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     @app.post("/api/workouts/{workout_id}/unlink")
     def workout_unlink(workout_id: str) -> list[dict[str, Any]]:
         return store.unlink(conn(), workout_id)
+
+    @app.post("/api/workouts/{workout_id}/link")
+    def workout_link(workout_id: str, body: LinkIn) -> list[dict[str, Any]]:
+        """workout_id = Teil 1, body.second_id = Teil 2."""
+        return store.link(conn(), workout_id, body.second_id)
 
     @app.delete("/api/workouts/{workout_id}")
     def workout_delete(workout_id: str, cascade: bool = False) -> dict[str, Any]:

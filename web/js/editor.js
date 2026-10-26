@@ -28,7 +28,7 @@ function payload(part, main) {
 
 export async function openEditor({ workoutId = null, date = '', plans = [], onChange = () => {} }) {
   const dialog = document.getElementById('editor');
-  let parts, active = 0, brickMode = false, busy = false, previewTimer = null, previewSeq = 0;
+  let parts, active = 0, brickMode = false, busy = false, previewTimer = null, previewSeq = 0, candidates = [];
 
   if (workoutId) {
     const w = await get(`/api/workouts/${workoutId}`);
@@ -42,6 +42,10 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
     }
   } else {
     parts = [blankPart({ date })];
+  }
+  if (workoutId && parts.length === 1 && !parts[0].read_only) {
+    const all = await get('/api/workouts');
+    candidates = all.filter((x) => x.id !== workoutId && !x.link_group && !x.read_only);
   }
   const main = parts[0];            // Teil 1 bzw. Einzeleinheit: Datum, Zeit, Art, Plan
   const existing = Boolean(workoutId);              // beim Öffnen vorhanden (steuert Titel/Löschen)
@@ -228,6 +232,34 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
   }
   function renderTabsLabel() { if (brickMode) tabs.replaceChildren(...parts.map((x, i) => h('button', { type: 'button', role: 'tab', 'aria-selected': i === active, class: i === active ? 'tab active' : 'tab', onclick: () => { active = i; renderPanel(); } }, `Teil ${i + 1}${x.sport ? ` · ${x.sport}` : ''}`))); }
 
+  // ----- Koppeln / Verknüpfung lösen (nur für gespeicherte Einheiten) -----
+  const linkBox = h('div', { class: 'sync-box', hidden: !existing });
+  function renderLinkBox() {
+    if (!existing) return;
+    if (brickMode) {
+      linkBox.replaceChildren(h('p', {}, 'Diese Einheit ist Teil einer Koppeleinheit.'),
+        h('button', { type: 'button', class: 'secondary', onclick: async () => {
+          if (!window.confirm('Verknüpfung lösen? Beide Einheiten bleiben als eigene Einheiten erhalten.')) return;
+          try { await post(`/api/workouts/${parts[0].id}/unlink`); toast('Verknüpfung gelöst.', 'success'); onChange(); dialog.close(); }
+          catch (e) { showMessage(e.message); }
+        } }, 'Verknüpfung lösen'));
+      return;
+    }
+    if (parts[0].read_only || !candidates.length) { linkBox.hidden = true; return; }
+    const select = h('select', { id: 'link-partner', 'aria-label': 'Einheit für Teil 2' },
+      h('option', { value: '' }, 'Einheit für Teil 2 wählen …'),
+      candidates.map((c) => h('option', { value: c.id }, `${c.title} (${[c.date, c.start_time, c.sport].filter(Boolean).join(' · ') || 'ohne Datum'})`)));
+    linkBox.replaceChildren(
+      h('p', {}, 'Mit einer weiteren Einheit koppeln: Diese Einheit wird Teil 1, die gewählte folgt direkt danach als Teil 2 (Datum und Zeit richten sich nach Teil 1).'),
+      h('div', { class: 'row' }, h('label', { class: 'field' }, h('span', {}, 'Teil 2'), select),
+        h('button', { type: 'button', class: 'secondary', onclick: async () => {
+          if (!select.value) { showMessage('Bitte zuerst die Einheit für Teil 2 wählen.'); return; }
+          if (!(await save({ close: false, quiet: true }))) return;
+          try { await post(`/api/workouts/${parts[0].id}/link`, { second_id: select.value }); toast('Zu einer Koppeleinheit verbunden.', 'success'); onChange(); dialog.close(); }
+          catch (e) { showMessage(e.message); }
+        } }, 'Koppeln')));
+  }
+
   // ----- Aufbau -----
   tabs = h('div', { class: 'tabs', role: 'tablist' });
   panel = h('div', { class: 'panel' });
@@ -246,7 +278,7 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
   const form = h('form', { method: 'dialog', onsubmit: (e) => { e.preventDefault(); save(); } },
     h('div', { class: 'dialog-head' }, h('h2', { id: 'editorTitle' }, existing ? 'Einheit bearbeiten' : 'Einheit planen'),
       h('button', { type: 'button', class: 'icon', 'aria-label': 'Schließen', onclick: () => dialog.close() }, '×')),
-    brickToggle, tabs, panel, summary, syncBox, message,
+    brickToggle, tabs, panel, summary, syncBox, linkBox, message,
     h('div', { class: 'dialog-actions' },
       existing ? h('button', { type: 'button', class: 'danger', onclick: remove }, 'Löschen') : null,
       h('span', { class: 'spacer' }),
@@ -256,5 +288,6 @@ export async function openEditor({ workoutId = null, date = '', plans = [], onCh
   dialog.replaceChildren(form);
   dialog.addEventListener('close', () => dialog.replaceChildren(), { once: true });
   renderPanel();
+  renderLinkBox();
   dialog.showModal();
 }

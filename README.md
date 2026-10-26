@@ -16,5 +16,5 @@ API-Schlüssel liegen verschlüsselt in der DB, der Schlüssel dazu in `secret.k
 `pip install -r requirements-dev.txt && pytest` – Intervals.icu wird nur simuliert.
 
 ## Grenzen
-Kein FIT/HRV/DFA-Import; bestehende Einzeleinheiten lassen sich nicht nachträglich koppeln.
+Kein FIT/HRV/DFA-Import.
 Windows-Start und echte Browser-Darstellung sind nur im Linux-Test nicht geprüft.

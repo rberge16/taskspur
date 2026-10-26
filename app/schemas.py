@@ -99,6 +99,11 @@ class BrickIn(BaseModel):
     part2: WorkoutIn
 
 
+class LinkIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    second_id: str = Field(min_length=1, max_length=64)
+
+
 class PlanIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=120)

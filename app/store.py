@@ -215,6 +215,35 @@ def unlink(conn: sqlite3.Connection, workout_id: str) -> list[dict[str, Any]]:
     return [get_workout(conn, i) for i in ids]
 
 
+def link(conn: sqlite3.Connection, first_id: str, second_id: str) -> list[dict[str, Any]]:
+    """Verbindet zwei vorhandene Einzeleinheiten zu einer Koppeleinheit (first = Teil 1, second = Teil 2).
+    Teil 2 übernimmt Datum, Startzeit (direkt nach Teil 1) und Plan-Zuordnung von Teil 1."""
+    if first_id == second_id:
+        raise Rejected("Eine Einheit kann nicht mit sich selbst gekoppelt werden.")
+    first, second = get_workout(conn, first_id), get_workout(conn, second_id)
+    for w in (first, second):
+        if w["read_only"]:
+            raise Rejected("Aus Intervals.icu importierte oder absolvierte Einheiten sind schreibgeschützt.", 403)
+        if w["link_group"]:
+            raise Rejected(f"„{w['title']}“ ist bereits Teil einer Koppeleinheit. Bitte zuerst die Verknüpfung lösen.")
+    if not first["date"]:
+        raise Rejected("Teil 1 braucht ein Datum, damit Teil 2 direkt danach beginnen kann.")
+    group = f"brick-{uuid.uuid4()}"
+    conn.execute("BEGIN")
+    try:
+        stamp = now_iso()
+        conn.execute("UPDATE workouts SET link_group=?, link_order=1, updated_at=? WHERE id=?", (group, stamp, first_id))
+        # Teil 2 ändert Zeit/Datum: eine bereits übertragene Fassung in Intervals.icu ist damit veraltet.
+        conn.execute("UPDATE workouts SET link_group=?, link_order=2, updated_at=?, "
+                     "sync_status=CASE WHEN sync_status='sent' THEN 'none' ELSE sync_status END WHERE id=?", (group, stamp, second_id))
+        _follow_up(conn, group)
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    return [get_workout(conn, first_id), get_workout(conn, second_id)]
+
+
 def delete_workout(conn: sqlite3.Connection, workout_id: str, *, cascade: bool = False) -> list[dict[str, Any]]:
     """Löscht lokal. Ohne cascade wird der Koppel-Partner entkoppelt (keine verwaiste Teil-2-Einheit).
     Gibt die gelöschten Datensätze zurück (für das Löschen in Intervals.icu)."""
